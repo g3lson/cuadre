@@ -500,7 +500,7 @@ struct EnTiendaView: View {
     }
 
     private var sinLista: some View {
-        Vacio(icono: .bolsa,
+        PantallaVacia(icono: .bolsa,
               titulo: "No hay ninguna compra abierta",
               texto: "Aquí se lleva la compra en vivo: vas marcando lo que echas al carrito y la app suma sola. Crea una lista y vuelve cuando estés en la tienda.") {
             Button("Ir a mis listas") { pestana = .listas }

@@ -316,7 +316,7 @@ struct VentasView: View {
     }
 
     private var sinEvento: some View {
-        Vacio(icono: .balanza,
+        PantallaVacia(icono: .balanza,
               titulo: "Empieza un día de venta",
               texto: "Una venta es un día de despacho: «Pescado del viernes», «Pollo del sábado». Dentro van los encargos de cada cliente, con su peso y su tarifa.") {
             Button("Empezar una venta") { nuevoEvento = true }

@@ -148,7 +148,9 @@ actor Api {
     }
 }
 
-/// Para las rutas que no devuelven nada que importe.
+/// Para las rutas que no devuelven nada que importe. Se llama así y no
+/// «Vacio» a secas porque eso choca con la pantalla vacía, y el compilador lo
+/// dice tarde y mal.
 struct Vacio: Codable {}
 
 /// `Encodable` no se puede meter en un `JSONEncoder` sin envolverlo: el

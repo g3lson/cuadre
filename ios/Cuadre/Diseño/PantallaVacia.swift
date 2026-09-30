@@ -8,7 +8,7 @@ import SwiftUI
 ///
 /// Está en un solo sitio porque antes cada pantalla se lo inventaba, y se
 /// notaba: una centrada, otra pegada arriba, y ninguna llenando el fondo.
-struct Vacio<Accion: View>: View {
+struct PantallaVacia<Accion: View>: View {
     @Environment(\.tema) private var tema
 
     let icono: Icono
