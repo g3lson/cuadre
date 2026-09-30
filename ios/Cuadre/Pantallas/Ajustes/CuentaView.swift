@@ -19,7 +19,7 @@ struct CuentaView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                Grupo {
+                Bloque {
                     FilaAjuste(titulo: "Correo", detalle: sesion.usuario?.email ?? "") { EmptyView() }
                     FilaAjuste(titulo: "Entras con",
                                detalle: sesion.usuario?.conApple == true ? "Apple y código al correo" : "Código al correo",

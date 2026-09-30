@@ -81,12 +81,13 @@ function cambiosDesde(usuarioId, desde) {
     catalogo: veo.grupos,
     clientes: veo.grupos,
     tiendas: veo.grupos,
+    pasillos: veo.grupos,
   };
   // Y por qué columna se comprueba.
   const porColumna = {
     grupos: 'id', listas: 'id', articulos: 'lista_id',
     eventos: 'id', encargos: 'evento_id',
-    catalogo: 'grupo_id', clientes: 'grupo_id', tiendas: 'grupo_id',
+    catalogo: 'grupo_id', clientes: 'grupo_id', tiendas: 'grupo_id', pasillos: 'grupo_id',
   };
 
   for (const t of TABLAS) {

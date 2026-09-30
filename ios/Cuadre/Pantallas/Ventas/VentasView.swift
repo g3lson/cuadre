@@ -25,6 +25,7 @@ struct VentasView: View {
     @State private var nuevoEvento = false
     @State private var comprobante: Encargo?
     @State private var aBorrar: Evento?
+    @State private var abierto: Encargo?
 
     /// Cuál se está mirando. Por defecto, la última abierta; si se elige otra,
     /// esa. Sin esto solo se veía una venta y las demás no existían.
@@ -56,6 +57,10 @@ struct VentasView: View {
         }
         .sheet(isPresented: $nuevoEvento) {
             NuevoEventoView().hojaDeCuadre(tema)
+        }
+        .sheet(item: $abierto) { o in
+            FichaEncargoView(encargo: o, ajustes: ajustes) { cobrado in comprobante = cobrado }
+                .hojaDeCuadre(tema)
         }
         .sheet(item: $comprobante) { o in
             ComprobanteView(encargo: o, moneda: ajustes.moneda).hojaDeCuadre(tema)
@@ -210,31 +215,49 @@ struct VentasView: View {
 
     private func tarjeta(_ o: Encargo) -> some View {
         Tarjeta {
-            HStack(alignment: .top, spacing: 10) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(o.cliente).font(tema.texto(17, .heavy))
-                    Text("\(o.producto) · pidió \(Formato.cantidad(o.pedido)) \(o.unidad)")
-                        .font(tema.texto(13)).foregroundStyle(tema.neutral700)
-                    if !o.nota.isEmpty {
-                        Text("«\(o.nota)»").font(tema.texto(13)).italic().foregroundStyle(tema.acento700)
+            Button { abierto = o } label: {
+                HStack(alignment: .top, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 6) {
+                            Text(o.cliente).font(tema.texto(17, .heavy))
+                            if !o.salida.cobra {
+                                Text(o.salida.etiqueta.uppercased())
+                                    .font(tema.texto(10, .heavy)).tracking(0.6)
+                                    .foregroundStyle(tema.acento800)
+                                    .padding(.horizontal, 7).padding(.vertical, 3)
+                                    .background(tema.acento200, in: Capsule())
+                            }
+                        }
+                        Text("\(o.producto) · pidió \(Formato.cantidad(o.pedido)) \(o.unidad)")
+                            .font(tema.texto(13)).foregroundStyle(tema.neutral700)
+                        if !o.nota.isEmpty {
+                            Text("«\(o.nota)»").font(tema.texto(13)).italic().foregroundStyle(tema.acento700)
+                        }
                     }
+                    Spacer(minLength: 6)
+                    Text(Formato.pesos(o.total, moneda: ajustes.moneda))
+                        .font(tema.titulo(24))
+                        .foregroundStyle(o.salida.cobra ? tema.acento2_700 : tema.neutral500)
+                        .lineLimit(1).minimumScaleFactor(0.7)
                 }
-                Spacer(minLength: 6)
-                Text(Formato.pesos(o.total, moneda: ajustes.moneda))
-                    .font(tema.titulo(24))
-                    .foregroundStyle(tema.acento2_700)
-                    .lineLimit(1).minimumScaleFactor(0.7)
+                .foregroundStyle(tema.texto)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
 
             HStack(spacing: 8) {
                 HStack(spacing: 0) {
                     Button { ajusta(o, -1) } label: {
                         Text("−").font(tema.texto(20, .bold)).frame(width: 36, height: 36)
                     }
-                    Text("\(Formato.cantidad(o.cantidad)) \(o.unidad)")
-                        .font(tema.texto(14, .heavy))
-                        .lineLimit(1)
-                        .frame(minWidth: 52)
+                    // Tocar el número lleva a la ficha, que es donde se puede
+                    // escribir 4.2 o pedir «doscientos pesos de eso».
+                    Button { abierto = o } label: {
+                        Text("\(Formato.cantidad(o.cantidad)) \(o.unidad)")
+                            .font(tema.texto(14, .heavy))
+                            .lineLimit(1)
+                            .frame(minWidth: 52, minHeight: 36)
+                    }
                     Button { ajusta(o, 1) } label: {
                         Text("+").font(tema.texto(20, .bold)).frame(width: 36, height: 36)
                     }
@@ -271,14 +294,19 @@ struct VentasView: View {
             }
 
             HStack(spacing: 8) {
-                Button("Cobrar \(Formato.pesos(o.total, moneda: ajustes.moneda))") {
-                    cobra(o, "Efectivo")
-                }
-                .buttonStyle(BotonPrincipal(alto: 48))
+                if o.salida.cobra {
+                    Button("Cobrar \(Formato.pesos(o.total, moneda: ajustes.moneda))") {
+                        cobra(o, "Efectivo")
+                    }
+                    .buttonStyle(BotonPrincipal(alto: 48))
 
-                Button("Transf.") { cobra(o, "Transferencia") }
-                    .buttonStyle(BotonSuave(alto: 48))
-                    .frame(width: 92)
+                    Button("Transf.") { cobra(o, "Transferencia") }
+                        .buttonStyle(BotonSuave(alto: 48))
+                        .frame(width: 92)
+                } else {
+                    Button("Anotar la salida") { cobra(o, o.salida.etiqueta) }
+                        .buttonStyle(BotonPrincipal(alto: 48))
+                }
             }
         }
         .contextMenu {
@@ -353,6 +381,8 @@ struct NuevoEventoView: View {
 
     @State private var titulo = ""
     @State private var fecha = Date()
+    @State private var grupoId = ""
+    @Query(filter: #Predicate<Grupo> { $0.borrado == nil }, sort: \Grupo.nombre) private var grupos: [Grupo]
     @FocusState private var enElTitulo: Bool
 
     var body: some View {
@@ -363,9 +393,21 @@ struct NuevoEventoView: View {
                     .foregroundStyle(tema.texto)
                     .focused($enElTitulo)
 
-                Grupo {
-                    FilaAjuste(titulo: "Fecha", ultima: true) {
+                Bloque {
+                    FilaAjuste(titulo: "Fecha", ultima: grupos.isEmpty) {
                         DatePicker("", selection: $fecha, displayedComponents: .date).labelsHidden()
+                    }
+                    if !grupos.isEmpty {
+                        FilaAjuste(titulo: "Grupo",
+                                   detalle: grupoId.isEmpty ? "Solo tuya" : "La verá la gente del grupo",
+                                   ultima: true) {
+                            Menu {
+                                Button("Solo mía") { grupoId = "" }
+                                ForEach(grupos) { g in Button(g.nombre) { grupoId = g.id } }
+                            } label: {
+                                ValorYChevron(texto: grupos.first { $0.id == grupoId }?.nombre ?? "Ninguno")
+                            }
+                        }
                     }
                 }
 
@@ -375,6 +417,7 @@ struct NuevoEventoView: View {
 
                 Button("Empezar") {
                     let e = Evento(titulo: titulo.trimmingCharacters(in: .whitespaces), fecha: fecha)
+                    e.grupoId = grupoId
                     ctx.insert(e)
                     try? ctx.save()
                     cerrar()

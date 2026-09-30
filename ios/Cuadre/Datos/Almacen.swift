@@ -22,6 +22,33 @@ enum Almacen {
         return nuevos
     }
 
+    // MARK: - Pasillos
+
+    /// Los pasillos de esta persona, en el orden en que recorre la tienda.
+    ///
+    /// La primera vez se siembran con los que trae la app. Son un punto de
+    /// partida: se renombran, se reordenan y se borran.
+    @MainActor
+    static func pasillos(_ ctx: ModelContext, sembrandoSiHaceFalta sembrar: Bool = true) -> [Pasillo] {
+        let d = FetchDescriptor<Pasillo>(
+            predicate: #Predicate { $0.borrado == nil },
+            sortBy: [SortDescriptor<Pasillo>(\.orden), SortDescriptor<Pasillo>(\.nombre)])
+        let hay = (try? ctx.fetch(d)) ?? []
+        guard hay.isEmpty, sembrar else { return hay }
+
+        for (i, nombre) in Categoria.dePartida.enumerated() {
+            ctx.insert(Pasillo(nombre: nombre, orden: i))
+        }
+        try? ctx.save()
+        return (try? ctx.fetch(d)) ?? []
+    }
+
+    /// Dónde va una categoría en el recorrido. Lo que no está, al final.
+    @MainActor
+    static func ordenDePasillo(_ ctx: ModelContext, _ nombre: String) -> Int {
+        pasillos(ctx).firstIndex { $0.nombre == nombre } ?? 999
+    }
+
     // MARK: - Listas
 
     @MainActor
@@ -224,10 +251,17 @@ enum Almacen {
         var porCobrar: Double = 0
         var efectivo: Double = 0
         var transferencia: Double = 0
+        /// Lo que salió sin cobrarse, a lo que te costó: regalos, donaciones y
+        /// lo que se llevó la casa. La mercancía sale igual y cuesta igual.
+        var regalado: Double = 0
         var cobrados: [Encargo] = []
         var pendientes: [Encargo] = []
+        var salidas: [Encargo] = []
 
-        var ganancia: Double { vendido - costo }
+        /// Lo que te costó lo que sí vendiste y lo que regalaste, juntos: el
+        /// dinero que salió del negocio en mercancía.
+        var costoTotal: Double { costo + regalado }
+        var ganancia: Double { vendido - costoTotal }
         var margen: Double { vendido > 0 ? ganancia / vendido : 0 }
     }
 
@@ -240,6 +274,16 @@ enum Almacen {
             .filter { $0.vivo && cal.isDate($0.fecha, inSameDayAs: dia) }
         for e in eventos {
             for o in encargos(ctx, de: e.id) {
+                // Lo que no se cobra cuenta igual: sale del inventario y costó
+                // dinero. Meterlo como una venta de cero pesos falsearía el
+                // margen; no meterlo haría que el inventario no cuadrara.
+                guard o.salida.cobra else {
+                    if o.cobrado {
+                        c.regalado += o.costoTotal
+                        c.salidas.append(o)
+                    }
+                    continue
+                }
                 if o.cobrado {
                     c.vendido += o.total
                     c.costo += o.costoTotal

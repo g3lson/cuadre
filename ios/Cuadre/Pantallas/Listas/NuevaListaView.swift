@@ -19,12 +19,14 @@ struct NuevaListaView: View {
            sort: [SortDescriptor<Lista>(\.fecha, order: .reverse)])
     private var listas: [Lista]
     @Query(filter: #Predicate<Tienda> { $0.borrado == nil }) private var tiendas: [Tienda]
+    @Query(filter: #Predicate<Grupo> { $0.borrado == nil }, sort: \Grupo.nombre) private var grupos: [Grupo]
 
     @State private var nombre = ""
     @State private var tienda = ""
     @State private var presupuesto = ""
     @State private var fecha = Date()
     @State private var color = 0
+    @State private var grupoId = ""
     @State private var arranque: Arranque = .blanco
     @State private var eligiendoTienda = false
     @FocusState private var enElNombre: Bool
@@ -51,7 +53,7 @@ struct NuevaListaView: View {
                         .submitLabel(.done)
                         .padding(.top, 4)
 
-                    Grupo {
+                    Bloque {
                         FilaAjuste(titulo: "Tienda") {
                             Button { eligiendoTienda = true } label: {
                                 ValorYChevron(texto: tienda.isEmpty ? "Elegir" : tienda)
@@ -69,9 +71,25 @@ struct NuevaListaView: View {
                                     .frame(width: 110)
                             }
                         }
-                        FilaAjuste(titulo: "Fecha", ultima: true) {
+                        FilaAjuste(titulo: "Fecha", ultima: grupos.isEmpty) {
                             DatePicker("", selection: $fecha, displayedComponents: .date)
                                 .labelsHidden()
+                        }
+                        if !grupos.isEmpty {
+                            // Elegir grupo ES compartir: lo que se crea dentro lo
+                            // ve esa gente sin invitarla a esta lista en concreto.
+                            FilaAjuste(titulo: "Grupo",
+                                       detalle: grupoId.isEmpty ? "Solo tuya" : "La verá la gente del grupo",
+                                       ultima: true) {
+                                Menu {
+                                    Button("Solo mía") { grupoId = "" }
+                                    ForEach(grupos) { g in
+                                        Button(g.nombre) { grupoId = g.id }
+                                    }
+                                } label: {
+                                    ValorYChevron(texto: grupos.first { $0.id == grupoId }?.nombre ?? "Ninguno")
+                                }
+                            }
                         }
                     }
 
@@ -180,6 +198,7 @@ struct NuevaListaView: View {
             ctx, nombre: limpio, tienda: tienda,
             presupuesto: Double(presupuesto.filter(\.isNumber)) ?? 0,
             fecha: fecha, color: color, copiandoDe: origen, faltantesDe: traer)
+        nueva.grupoId = grupoId
 
         // La tienda se recuerda para la próxima vez sin que nadie la escriba dos veces.
         if !tienda.isEmpty, !tiendas.contains(where: { $0.nombre == tienda && $0.vivo }) {
@@ -221,7 +240,7 @@ struct EligeTienda: View {
                     }
 
                     if !tiendas.isEmpty {
-                        Grupo {
+                        Bloque {
                             ForEach(Array(tiendas.enumerated()), id: \.element.id) { i, t in
                                 Button {
                                     elegida = t.nombre

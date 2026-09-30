@@ -159,7 +159,7 @@ struct ChinolaEnvio: View {
                     .scrollIndicators(.hidden)
                 }
 
-                Grupo {
+                Bloque {
                     FilaAjuste(titulo: "Partir por categorías",
                                detalle: "Entran \(porCategoria.count) movimientos en vez de uno",
                                ultima: true) {

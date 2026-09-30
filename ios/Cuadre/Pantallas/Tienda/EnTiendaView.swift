@@ -65,9 +65,11 @@ struct EnTiendaView: View {
 
     /// Por comprar, repartido por pasillo y en el orden del recorrido.
     private var porPasillo: [(categoria: String, articulos: [Articulo])] {
-        Dictionary(grouping: faltan, by: \.categoria)
+        let orden = Dictionary(uniqueKeysWithValues:
+            Almacen.pasillos(ctx).enumerated().map { ($0.element.nombre, $0.offset) })
+        return Dictionary(grouping: faltan, by: \.categoria)
             .map { (categoria: $0.key, articulos: $0.value.sorted { $0.orden < $1.orden }) }
-            .sorted { Categoria.orden($0.categoria) < Categoria.orden($1.categoria) }
+            .sorted { (orden[$0.categoria] ?? 999) < (orden[$1.categoria] ?? 999) }
     }
 
     var body: some View {

@@ -125,7 +125,7 @@ struct FichaProductoView: View {
                         .focused($enElNombre)
                         .onChange(of: producto.nombre) { _, _ in producto.toco() }
 
-                    Grupo {
+                    Bloque {
                         FilaAjuste(titulo: "Se vende por") {
                             Menu {
                                 ForEach(Unidad.todas) { u in
@@ -137,8 +137,11 @@ struct FichaProductoView: View {
                         }
                         FilaAjuste(titulo: "Categoría", ultima: true) {
                             Menu {
-                                ForEach(Categoria.todas, id: \.self) { c in
-                                    Button(c) { producto.categoria = c; producto.toco() }
+                                ForEach(Almacen.pasillos(ctx)) { pasillo in
+                                    Button(pasillo.nombre) {
+                                        producto.categoria = pasillo.nombre
+                                        producto.toco()
+                                    }
                                 }
                             } label: {
                                 ValorYChevron(texto: producto.categoria)
@@ -243,7 +246,7 @@ struct TarifasView: View {
                     .font(tema.texto(15)).foregroundStyle(tema.neutral700)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Grupo {
+                Bloque {
                     fila("Tarifa 1", $ajustes.nombreDetal)
                     fila("Tarifa 2", $ajustes.nombreMayor)
                     fila("Tarifa 3", $ajustes.nombreEspecial, ultima: true)

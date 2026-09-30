@@ -227,6 +227,7 @@ enum Reportes {
     struct DelCuadre: Encodable {
         let fecha: String
         let vendido: Double, costo: Double, comprado: Double, porCobrar: Double
+        var regalado: Double = 0
         let encargos: [EncargoReporte]
     }
 
@@ -261,31 +262,53 @@ enum Compartir {
     private struct RespuestaMiembros: Decodable { let miembros: [Miembro]; var yo: String? }
     private struct Invita: Encodable { let correo: String }
     struct Enlace: Decodable { let codigo: String; let url: String; let texto: String }
-    struct Aceptada: Decodable { let listaId: String; var nombre: String? }
+    struct Aceptada: Decodable { let listaId: String; var nombre: String?; var ambito: String? }
 
-    static func miembros(de listaId: String) async throws -> [Miembro] {
-        let r: RespuestaMiembros = try await Api.shared.pide("api/listas/\(listaId)/miembros")
+    /// Qué se comparte: una lista suelta o un grupo entero. Las rutas son las
+    /// mismas y solo cambia esto.
+    enum Ambito: String {
+        case lista, grupo
+        var camino: String { self == .grupo ? "grupos" : "listas" }
+    }
+
+    static func miembros(de id: String, _ ambito: Ambito = .lista) async throws -> [Miembro] {
+        let r: RespuestaMiembros = try await Api.shared.pide("api/\(ambito.camino)/\(id)/miembros")
         return r.miembros
     }
 
-    static func invita(_ correo: String, a listaId: String) async throws -> [Miembro] {
+    static func invita(_ correo: String, a id: String, _ ambito: Ambito = .lista) async throws -> [Miembro] {
         let r: RespuestaMiembros = try await Api.shared.pide(
-            "api/listas/\(listaId)/miembros", metodo: "POST", cuerpo: Invita(correo: correo))
+            "api/\(ambito.camino)/\(id)/miembros", metodo: "POST", cuerpo: Invita(correo: correo))
         return r.miembros
     }
 
-    static func quita(_ correo: String, de listaId: String) async throws {
+    static func quita(_ correo: String, de id: String, _ ambito: Ambito = .lista) async throws {
         let codificado = correo.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? correo
         let _: Vacio = try await Api.shared.pide(
-            "api/listas/\(listaId)/miembros/\(codificado)", metodo: "DELETE")
+            "api/\(ambito.camino)/\(id)/miembros/\(codificado)", metodo: "DELETE")
     }
 
-    static func enlace(de listaId: String) async throws -> Enlace {
-        try await Api.shared.pide("api/listas/\(listaId)/enlace", metodo: "POST", cuerpo: Vacio())
+    static func enlace(de id: String, _ ambito: Ambito = .lista) async throws -> Enlace {
+        try await Api.shared.pide("api/\(ambito.camino)/\(id)/enlace", metodo: "POST", cuerpo: Vacio())
+    }
+
+    struct GrupoDelServidor: Decodable, Identifiable {
+        let id: String
+        let nombre: String
+        var mio: Bool = false
+        var miembros: Int = 1
+    }
+    private struct RespuestaGrupos: Decodable { let grupos: [GrupoDelServidor] }
+
+    /// Cuánta gente hay en cada grupo. Los miembros no se sincronizan como los
+    /// datos: son permisos, y los permisos los decide el servidor.
+    static func grupos() async throws -> [GrupoDelServidor] {
+        let r: RespuestaGrupos = try await Api.shared.pide("api/grupos")
+        return r.grupos
     }
 
     static func acepta(_ codigo: String) async throws -> Aceptada {
-        try await Api.shared.pide("api/listas/invitacion/\(codigo)", metodo: "POST")
+        try await Api.shared.pide("api/grupos/invitacion/\(codigo)", metodo: "POST")
     }
 }
 

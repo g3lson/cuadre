@@ -204,7 +204,7 @@ struct CerrarCompraView: View {
             .background(tema.acento100, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         }
 
-        Grupo {
+        Bloque {
             Button { paso = .chinola } label: {
                 FilaAjuste(titulo: "Pasar el gasto a Chinola",
                            detalle: sesion.chinola == nil ? "Sin conectar" : (lista.chinolaNota.isEmpty ? "Pendiente" : lista.chinolaNota)) {

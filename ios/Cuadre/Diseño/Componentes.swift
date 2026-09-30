@@ -157,8 +157,11 @@ struct FilaAjuste<Derecha: View>: View {
     }
 }
 
-/// El grupo de filas de ajuste, con su fondo de superficie y sus esquinas.
-struct Grupo<Contenido: View>: View {
+/// Un bloque de filas de ajuste, con su fondo de superficie y sus esquinas.
+///
+/// Se llama `Bloque` y no `Grupo` porque un grupo, en esta app, es un grupo de
+/// personas con las que se comparte un negocio.
+struct Bloque<Contenido: View>: View {
     @Environment(\.tema) private var tema
     @ViewBuilder var contenido: Contenido
 

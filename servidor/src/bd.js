@@ -92,6 +92,13 @@ CREATE TABLE IF NOT EXISTS tiendas (
   id TEXT PRIMARY KEY, usuario_id TEXT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
   datos TEXT NOT NULL, actualizado TEXT NOT NULL, borrado TEXT);
 
+-- Los pasillos: las categorías con las que se agrupa la lista en la tienda.
+-- Son datos y no una constante porque cada quien compra en un sitio distinto y
+-- recorre los pasillos en otro orden; y porque un colmado no tiene «Ferretería».
+CREATE TABLE IF NOT EXISTS pasillos (
+  id TEXT PRIMARY KEY, usuario_id TEXT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+  datos TEXT NOT NULL, actualizado TEXT NOT NULL, borrado TEXT);
+
 -- GRUPOS.
 --
 -- «Mi negocio», «El otro negocio», «Casa». Un grupo tiene gente dentro, y todo
@@ -242,7 +249,7 @@ columna('invitaciones', 'ambito', "TEXT NOT NULL DEFAULT 'lista'");
 // A qué grupo pertenece cada cosa. Sale de dentro de `datos` y se guarda aparte
 // porque de ella depende quién puede verla, y buscarla dentro del JSON en cada
 // sincronización sería recorrer la tabla entera cada vez.
-for (const tabla of ['listas', 'eventos', 'catalogo', 'clientes', 'tiendas']) {
+for (const tabla of ['listas', 'eventos', 'catalogo', 'clientes', 'tiendas', 'pasillos']) {
   columna(tabla, 'grupo_id', 'TEXT');
   bd.exec(`CREATE INDEX IF NOT EXISTS idx_${tabla}_grupo ON ${tabla} (grupo_id)`);
 }
@@ -291,7 +298,7 @@ try {
 } catch (e) { console.error('[bd] no pude rellenar lista_id:', e.message); }
 
 /** Las tablas que el sincronizador conoce. Añadir una entidad es añadirla aquí. */
-export const TABLAS = ['grupos', 'listas', 'articulos', 'eventos', 'encargos', 'catalogo', 'clientes', 'tiendas', 'ajustes'];
+export const TABLAS = ['grupos', 'pasillos', 'listas', 'articulos', 'eventos', 'encargos', 'catalogo', 'clientes', 'tiendas', 'ajustes'];
 
 /**
  * De dónde sale el «a quién pertenece» de cada tabla, para poder guardarlo en
@@ -304,6 +311,7 @@ export const AMBITO_DE = {
   catalogo: { columna: 'grupo_id', campo: 'grupoId' },
   clientes: { columna: 'grupo_id', campo: 'grupoId' },
   tiendas: { columna: 'grupo_id', campo: 'grupoId' },
+  pasillos: { columna: 'grupo_id', campo: 'grupoId' },
   articulos: { columna: 'lista_id', campo: 'listaId', padre: 'listas' },
   encargos: { columna: 'evento_id', campo: 'eventoId', padre: 'eventos' },
 };

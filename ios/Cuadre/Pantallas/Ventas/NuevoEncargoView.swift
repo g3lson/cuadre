@@ -85,7 +85,7 @@ struct NuevoEncargoView: View {
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                     } else {
-                        Grupo {
+                        Bloque {
                             ForEach(Array(catalogo.enumerated()), id: \.element.id) { i, p in
                                 Button {
                                     producto = p

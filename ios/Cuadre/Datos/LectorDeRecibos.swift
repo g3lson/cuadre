@@ -123,7 +123,7 @@ enum LectorDeRecibos {
                     cantidad: max(0, $0.cantidad),
                     precio: max(0, $0.precioPorUnidad),
                     nota: $0.nota,
-                    categoria: Categoria.todas.contains($0.categoria) ? $0.categoria : Categoria.porDefecto)
+                    categoria: $0.categoria.isEmpty ? Categoria.porDefecto : $0.categoria)
             })
     }
 

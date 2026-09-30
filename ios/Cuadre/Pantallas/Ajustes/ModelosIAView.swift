@@ -43,7 +43,7 @@ struct ModelosIAView: View {
 
                 if let c = catalogo {
                     Rotulo("Lo que trae Cuadre")
-                    Grupo {
+                    Bloque {
                         FilaAjuste(titulo: "Para el texto", detalle: c.puestos.texto.joined(separator: " → ")) { EmptyView() }
                         FilaAjuste(titulo: "Para las fotos", detalle: c.puestos.foto.joined(separator: " → "), ultima: true) { EmptyView() }
                     }
@@ -52,7 +52,7 @@ struct ModelosIAView: View {
                         .fixedSize(horizontal: false, vertical: true)
 
                     Rotulo("Elegir uno").padding(.top, 8)
-                    Grupo {
+                    Bloque {
                         Button { ajustes.modeloIA = ""; ajustes.toco() } label: {
                             FilaAjuste(titulo: "El que decida Cuadre",
                                        detalle: "Lo normal. Va probando la cadena de arriba.") {

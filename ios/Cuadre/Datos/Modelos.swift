@@ -58,6 +58,8 @@ extension Sincronizable {
     /// Qué se hizo con el gasto: el texto que se enseña en la lista cerrada.
     var chinolaNota: String
     var orden: Int
+    /// A qué grupo pertenece. Vacío = solo tuya.
+    var grupoId: String
     var actualizado: Date
     var borrado: Date?
     var subido: Date?
@@ -76,6 +78,7 @@ extension Sincronizable {
         self.notaCierre = ""
         self.chinolaNota = ""
         self.orden = orden
+        self.grupoId = ""
         self.actualizado = .now
     }
 
@@ -136,6 +139,7 @@ extension Sincronizable {
     var fecha: Date
     /// «abierto» mientras se despacha, «cerrado» cuando se cuadró el día.
     var estado: String
+    var grupoId: String
     var actualizado: Date
     var borrado: Date?
     var subido: Date?
@@ -145,6 +149,7 @@ extension Sincronizable {
         self.titulo = titulo
         self.fecha = fecha
         self.estado = estado
+        self.grupoId = ""
         self.actualizado = .now
     }
 }
@@ -167,6 +172,10 @@ extension Sincronizable {
     var costo: Double
     /// «pendiente» o «cobrado».
     var estado: String
+    /// Qué clase de salida es. No todo lo que sale del negocio se cobra: hay
+    /// regalos, donaciones, consumo propio y rebajas. Contarlas como ventas de
+    /// cero pesos falsea el margen; no contarlas hace que el inventario no cuadre.
+    var clase: String
     var metodo: String
     var nota: String
     var cobradoEn: Date?
@@ -192,11 +201,15 @@ extension Sincronizable {
         self.precioEspecial = precioEspecial
         self.costo = costo
         self.estado = "pendiente"
+        self.clase = Salida.venta.rawValue
         self.metodo = ""
         self.nota = ""
         self.actualizado = .now
     }
 
+    var salida: Salida { Salida(rawValue: clase) ?? .venta }
+
+    /// El precio de la tarifa elegida. Lo que se cobra de verdad es `total`.
     var precioAplicado: Double {
         switch Tarifa(rawValue: tarifa) ?? .detal {
         case .detal: return precioDetal
@@ -204,7 +217,10 @@ extension Sincronizable {
         case .especial: return precioEspecial
         }
     }
-    var total: Double { cantidad * precioAplicado }
+
+    /// Lo que entra. Un regalo o una donación no entran, aunque la mercancía
+    /// salga igual y cueste lo mismo.
+    var total: Double { salida.cobra ? cantidad * precioAplicado : 0 }
     var costoTotal: Double { cantidad * costo }
     var cobrado: Bool { estado == "cobrado" }
 }
@@ -249,6 +265,51 @@ extension Sincronizable {
         self.id = id
         self.nombre = nombre
         self.telefono = telefono
+        self.actualizado = .now
+    }
+}
+
+/// UN PASILLO.
+///
+/// Las categorías con las que se agrupa la lista. Son datos y no una lista fija
+/// porque cada quien compra en un sitio distinto y lo recorre en otro orden: un
+/// colmado no tiene «Ferretería», y quien vende pescado querrá «Nevera» antes
+/// que «Víveres». Las que trae la app son un punto de partida, no una regla.
+@Model final class Pasillo: Sincronizable {
+    @Attribute(.unique) var id: String
+    var nombre: String
+    /// En qué orden se recorren. Es lo que de verdad ahorra pasos en el súper.
+    var orden: Int
+    var grupoId: String
+    var actualizado: Date
+    var borrado: Date?
+    var subido: Date?
+
+    init(id: String = UUID().uuidString, nombre: String, orden: Int = 0, grupoId: String = "") {
+        self.id = id
+        self.nombre = nombre
+        self.orden = orden
+        self.grupoId = grupoId
+        self.actualizado = .now
+    }
+}
+
+/// UN GRUPO.
+///
+/// «Mi negocio», «El otro negocio», «Casa». Lo que se crea dentro de un grupo lo
+/// ve la gente del grupo, sin compartirlo cosa por cosa.
+@Model final class Grupo: Sincronizable {
+    @Attribute(.unique) var id: String
+    var nombre: String
+    var color: Int
+    var actualizado: Date
+    var borrado: Date?
+    var subido: Date?
+
+    init(id: String = UUID().uuidString, nombre: String, color: Int = 0) {
+        self.id = id
+        self.nombre = nombre
+        self.color = color
         self.actualizado = .now
     }
 }
@@ -333,4 +394,47 @@ enum ColorLista {
         }
     }
     static let cuantos = 5
+}
+
+/// QUÉ CLASE DE SALIDA ES.
+///
+/// La mercancía sale igual y cuesta igual; lo que cambia es si entra dinero. Sin
+/// esto, un regalo hay que anotarlo como una venta de cero pesos —y entonces el
+/// margen sale mal— o no anotarlo —y entonces el inventario no cuadra.
+enum Salida: String, CaseIterable, Codable, Identifiable {
+    case venta, regalo, donacion, consumo, rebaja
+    var id: String { rawValue }
+
+    var etiqueta: String {
+        switch self {
+        case .venta: return "Venta"
+        case .regalo: return "Regalo"
+        case .donacion: return "Donación"
+        case .consumo: return "Para la casa"
+        case .rebaja: return "Rebaja"
+        }
+    }
+
+    /// Si entra dinero. La rebaja sí cobra: cobra menos.
+    var cobra: Bool { self == .venta || self == .rebaja }
+
+    /// Cómo se llama en el cuadre y en el reporte.
+    var enElCuadre: String {
+        switch self {
+        case .venta, .rebaja: return "Vendiste"
+        case .regalo: return "Regalaste"
+        case .donacion: return "Donaste"
+        case .consumo: return "Para la casa"
+        }
+    }
+
+    var explicacion: String {
+        switch self {
+        case .venta: return "Entra el dinero completo."
+        case .regalo: return "Sale la mercancía y no entra nada. Cuenta en lo que te costó."
+        case .donacion: return "Igual que un regalo, pero se cuenta aparte para poder sumarlo."
+        case .consumo: return "Se lo llevó el negocio o la casa. No es una venta."
+        case .rebaja: return "Se cobra menos de la tarifa. La diferencia se ve en el cuadre."
+        }
+    }
 }

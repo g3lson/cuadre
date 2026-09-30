@@ -223,7 +223,8 @@ function dibujaCompra(doc, d) {
 function dibujaCuadre(doc, d) {
   const vendido = Number(d.vendido || 0), costo = Number(d.costo || 0);
   const comprado = Number(d.comprado || 0), porCobrar = Number(d.porCobrar || 0);
-  const ganancia = vendido - costo;
+  const regalado = Number(d.regalado || 0);
+  const ganancia = vendido - costo - regalado;
   let y = cabecera(doc, 'El cuadre', fechaLarga(d.fecha));
 
   doc.roundedRect(IZQ, y, ancho(doc), 100, 18).fill(SALVIA);
@@ -237,6 +238,7 @@ function dibujaCuadre(doc, d) {
   for (const [rotulo, valor] of [
     ['Vendiste', pesos(vendido)],
     ['Te costó la mercancía', '- ' + pesos(costo)],
+    ...(regalado > 0 ? [['Regalaste y donaste', '- ' + pesos(regalado)]] : []),
     ['Gastaste en compras', '- ' + pesos(comprado)],
     ['Falta por cobrar', pesos(porCobrar)],
   ]) {
@@ -287,8 +289,10 @@ export function paginaReporte(r) {
     ? '<tr><th>Cliente</th><th class="d">Pago</th><th class="n">Total</th></tr>'
     : '<tr><th>Producto</th><th class="d">Cant.</th><th class="d">Precio</th><th class="n">Total</th></tr>';
 
+  const regalado = Number(d.regalado || 0);
   const tarjetas = esCuadre
-    ? [['Vendiste', pesos(vendido)], ['Te costó', pesos(costo)], ['Ganancia', pesos(vendido - costo), true]]
+    ? [['Vendiste', pesos(vendido)], ['Te costó', pesos(costo + regalado)],
+       ['Ganancia', pesos(vendido - costo - regalado), true]]
     : [['Presupuesto', presupuesto ? pesos(presupuesto) : '—'], ['Pagaste', pesos(pagado)],
        [diferencia >= 0 ? 'Te sobró' : 'Te pasaste', pesos(Math.abs(diferencia)), diferencia >= 0]];
 
@@ -341,7 +345,7 @@ th.d,th.n{text-align:right}
 <p class="sub">${esc([d.tienda, fechaLarga(d.fecha)].filter(Boolean).join(' · '))}</p>
 <div class="cifras">${tarjetas.map(([r2, v, bien]) => `<div class="cifra${bien ? ' bien' : ''}"><span>${esc(r2)}</span><strong>${esc(v)}</strong></div>`).join('')}</div>
 <table><thead>${cabezas}</thead><tbody>${filas || '<tr><td colspan="4" class="d">Nada todavía.</td></tr>'}</tbody></table>
-<div class="total"><span>${esCuadre ? 'Ganancia' : 'Total pagado'}</span><b>${pesos(esCuadre ? vendido - costo : pagado)}</b></div>
+<div class="total"><span>${esCuadre ? 'Ganancia' : 'Total pagado'}</span><b>${pesos(esCuadre ? vendido - costo - regalado : pagado)}</b></div>
 ${(d.faltantes || []).length ? `<div class="falto"><h2>Lo que faltó</h2>${d.faltantes.map((f) => `<p><strong>${esc(f.nombre)}</strong> → ${esc(f.destino || 'pendiente')}</p>`).join('')}</div>` : ''}
 <p class="pie">Reporte hecho con <a href="https://cuadre.fente.com.do">Cuadre</a>, de FENTE. Este enlace solo lo tiene quien lo recibió.
 <br><a href="/r/${esc(r.id)}.pdf">Descargar en PDF</a></p>

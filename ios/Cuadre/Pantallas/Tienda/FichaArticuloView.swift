@@ -96,7 +96,8 @@ struct FichaArticuloView: View {
                         Text("Pasillo").font(tema.texto(15, .bold))
                         Spacer()
                         Menu {
-                            ForEach(Categoria.todas, id: \.self) { c in
+                            ForEach(Almacen.pasillos(ctx)) { pasillo in
+                                let c = pasillo.nombre
                                 Button {
                                     articulo.categoria = c
                                     categoriaAMano = true

@@ -52,6 +52,8 @@ struct AjustesView: View {
                 case .chinola: ChinolaAjustesView()
                 case .cuenta: CuentaView()
                 case .ia: ModelosIAView(ajustes: ajustes)
+                case .pasillos: PasillosView()
+                case .grupos: GruposView()
                 }
             }
         }
@@ -64,7 +66,7 @@ struct AjustesView: View {
         }
     }
 
-    enum Destino: Hashable { case catalogo, tarifas, chinola, cuenta, ia }
+    enum Destino: Hashable { case catalogo, tarifas, chinola, cuenta, ia, pasillos, grupos }
 
     // MARK: - Trozos
 
@@ -99,7 +101,7 @@ struct AjustesView: View {
     @ViewBuilder
     private var negocio: some View {
         Rotulo("Mi negocio").padding(.top, 6)
-        Grupo {
+        Bloque {
             FilaAjuste(titulo: "Modo vendedor", detalle: "Activa la pestaña Ventas") {
                 Interruptor(encendido: Binding(
                     get: { ajustes.modoVendedor },
@@ -108,6 +110,13 @@ struct AjustesView: View {
             NavigationLink(value: Destino.catalogo) {
                 FilaAjuste(titulo: "Catálogo de precios") {
                     ValorYChevron(texto: "\(cuantosProductos) producto\(cuantosProductos == 1 ? "" : "s")")
+                }
+            }
+            .buttonStyle(.plain)
+
+            NavigationLink(value: Destino.pasillos) {
+                FilaAjuste(titulo: "Pasillos", detalle: "El orden en que recorres la tienda") {
+                    ValorYChevron(texto: "\(cuantosPasillos)")
                 }
             }
             .buttonStyle(.plain)
@@ -122,6 +131,10 @@ struct AjustesView: View {
         }
     }
 
+    private var cuantosPasillos: Int {
+        ((try? ctx.fetch(FetchDescriptor<Pasillo>())) ?? []).filter(\.vivo).count
+    }
+
     private var cuantosProductos: Int {
         ((try? ctx.fetch(FetchDescriptor<Producto>())) ?? []).filter(\.vivo).count
     }
@@ -129,7 +142,14 @@ struct AjustesView: View {
     @ViewBuilder
     private var conexiones: some View {
         Rotulo("Conexiones").padding(.top, 6)
-        Grupo {
+        Bloque {
+            NavigationLink(value: Destino.grupos) {
+                FilaAjuste(titulo: "Grupos", detalle: "Comparte un negocio entero de una vez") {
+                    IconoView(icono: .chevron, tamano: 16, grosor: 3).foregroundStyle(tema.neutral500)
+                }
+            }
+            .buttonStyle(.plain)
+
             NavigationLink(value: Destino.chinola) {
                 FilaAjuste(titulo: "Chinola", detalle: chinolaDetalle) {
                     IconoView(icono: .chevron, tamano: 16, grosor: 3).foregroundStyle(tema.neutral500)
@@ -163,7 +183,7 @@ struct AjustesView: View {
     @ViewBuilder
     private var preferencias: some View {
         Rotulo("Preferencias").padding(.top, 6)
-        Grupo {
+        Bloque {
             FilaAjuste(titulo: "Moneda") {
                 Menu {
                     ForEach(["RD$", "US$", "€"], id: \.self) { m in
@@ -211,7 +231,7 @@ struct AjustesView: View {
     @ViewBuilder
     private var pie: some View {
         Rotulo("Tu cuenta").padding(.top, 6)
-        Grupo {
+        Bloque {
             NavigationLink(value: Destino.cuenta) {
                 FilaAjuste(titulo: "Sesiones, datos y borrar la cuenta", ultima: true) {
                     IconoView(icono: .chevron, tamano: 16, grosor: 3).foregroundStyle(tema.neutral500)

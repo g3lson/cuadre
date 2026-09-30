@@ -9,8 +9,8 @@ struct CuadreApp: App {
     init() {
         do {
             contenedor = try ModelContainer(
-                for: Lista.self, Articulo.self, Evento.self, Encargo.self,
-                     Producto.self, Cliente.self, Tienda.self, Ajustes.self,
+                for: Grupo.self, Pasillo.self, Lista.self, Articulo.self, Evento.self,
+                     Encargo.self, Producto.self, Cliente.self, Tienda.self, Ajustes.self,
                 configurations: ModelConfiguration(isStoredInMemoryOnly: false))
         } catch {
             // Si la base local no abre, la app no puede hacer nada útil: mejor

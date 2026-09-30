@@ -11,8 +11,22 @@ struct CompartirListaView: View {
     @Environment(\.dismiss) private var cerrar
     @Environment(Sesion.self) private var sesion
 
-    let lista: Lista
+    /// Qué se comparte. La pantalla es la misma para una lista y para un grupo:
+    /// cambia el texto, no el trabajo.
+    let ambito: Compartir.Ambito
+    let id: String
+    let nombre: String
     @Binding var miembros: [Compartir.Miembro]
+
+    init(lista: Lista, miembros: Binding<[Compartir.Miembro]>) {
+        ambito = .lista; id = lista.id; nombre = lista.nombre
+        _miembros = miembros
+    }
+
+    init(grupo: Grupo, miembros: Binding<[Compartir.Miembro]>) {
+        ambito = .grupo; id = grupo.id; nombre = grupo.nombre
+        _miembros = miembros
+    }
 
     @State private var correo = ""
     @State private var enlace: Compartir.Enlace?
@@ -35,7 +49,7 @@ struct CompartirListaView: View {
 
                     if !miembros.isEmpty {
                         Rotulo("Quién la ve")
-                        Grupo {
+                        Bloque {
                             ForEach(Array(miembros.enumerated()), id: \.element.id) { i, m in
                                 fila(m, ultima: i == miembros.count - 1)
                             }
@@ -43,7 +57,7 @@ struct CompartirListaView: View {
                     }
 
                     if !soyDueño {
-                        Button("Salirme de esta lista", role: .destructive) {
+                        Button(ambito == .grupo ? "Salirme del grupo" : "Salirme de esta lista", role: .destructive) {
                             aQuitar = miembros.first { $0.email == sesion.usuario?.email }
                         }
                         .buttonStyle(BotonSuave())
@@ -60,7 +74,7 @@ struct CompartirListaView: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .fondoDelTema(tema)
-            .navigationTitle("Compartir")
+            .navigationTitle(ambito == .grupo ? "El grupo" : "Compartir")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -76,7 +90,9 @@ struct CompartirListaView: View {
             Button("Quitar", role: .destructive) { Task { await quita() } }
             Button("Dejarlo", role: .cancel) { aQuitar = nil }
         } message: {
-            Text("Dejará de ver la lista y de poder tocarla. Lo que ya puso se queda.")
+            Text(ambito == .grupo
+                 ? "Dejará de ver todo lo del grupo. Lo que ya puso se queda."
+                 : "Dejará de ver la lista y de poder tocarla. Lo que ya puso se queda.")
         }
     }
 
@@ -84,10 +100,12 @@ struct CompartirListaView: View {
 
     private var encabezado: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(lista.nombre).font(tema.titulo(30)).foregroundStyle(tema.texto)
-            Text(miembros.count > 1
-                 ? "Quien esté en la lista ve lo que marcas al momento. Si tú coges la leche, no la busca nadie más."
-                 : "Compártela y la verán al momento: si tú coges la leche, no la busca nadie más.")
+            Text(nombre).font(tema.titulo(30)).foregroundStyle(tema.texto)
+            Text(ambito == .grupo
+                 ? "Todo lo que crees dentro de este grupo —listas, ventas, catálogo, clientes— lo verá esta gente sin compartirlo cosa por cosa."
+                 : (miembros.count > 1
+                    ? "Quien esté en la lista ve lo que marcas al momento. Si tú coges la leche, no la busca nadie más."
+                    : "Compártela y la verán al momento: si tú coges la leche, no la busca nadie más."))
                 .font(tema.texto(15))
                 .foregroundStyle(tema.neutral700)
                 .fixedSize(horizontal: false, vertical: true)
@@ -169,7 +187,7 @@ struct CompartirListaView: View {
     // MARK: - Lo que hace
 
     private func refresca() async {
-        miembros = (try? await Compartir.miembros(de: lista.id)) ?? miembros
+        miembros = (try? await Compartir.miembros(de: id, ambito)) ?? miembros
     }
 
     private func invita() async {
@@ -178,7 +196,7 @@ struct CompartirListaView: View {
         trabajando = true; error = nil
         defer { trabajando = false }
         do {
-            miembros = try await Compartir.invita(c, a: lista.id)
+            miembros = try await Compartir.invita(c, a: id, ambito)
             correo = ""
             enElCorreo = false
             sesion.avisa("Invitación mandada a \(c)", .bien)
@@ -190,7 +208,7 @@ struct CompartirListaView: View {
     private func haceEnlace() async {
         trabajando = true; error = nil
         defer { trabajando = false }
-        do { enlace = try await Compartir.enlace(de: lista.id) }
+        do { enlace = try await Compartir.enlace(de: id, ambito) }
         catch { self.error = (error as? LocalizedError)?.errorDescription ?? "No pude crear el enlace." }
     }
 
@@ -198,7 +216,7 @@ struct CompartirListaView: View {
         guard let m = aQuitar else { return }
         aQuitar = nil
         do {
-            try await Compartir.quita(m.email, de: lista.id)
+            try await Compartir.quita(m.email, de: id, ambito)
             if m.email == sesion.usuario?.email { cerrar() } else { await refresca() }
         } catch {
             self.error = (error as? LocalizedError)?.errorDescription ?? "No pude quitarla."

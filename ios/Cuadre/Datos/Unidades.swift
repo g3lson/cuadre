@@ -46,7 +46,9 @@ struct Unidad: Identifiable, Hashable {
 /// vegetales, se pasa por la carne y la nevera, y los víveres y la limpieza
 /// quedan para el final porque pesan y van debajo en el carrito.
 enum Categoria {
-    static let todas = [
+    /// Con las que empieza alguien la primera vez. A partir de ahí son suyas:
+    /// se renombran, se reordenan y se borran desde Ajustes.
+    static let dePartida = [
         "Frutas y vegetales",
         "Carnes y pescados",
         "Lácteos y huevos",
@@ -60,9 +62,10 @@ enum Categoria {
     ]
     static let porDefecto = "Otros"
 
-    /// Dónde va en el recorrido. Lo que no se reconoce va al final.
+    /// Dónde iría si nadie ha tocado nada. El orden de verdad sale de los
+    /// pasillos guardados; esto es solo el respaldo.
     static func orden(_ c: String) -> Int {
-        todas.firstIndex(of: c) ?? todas.count
+        dePartida.firstIndex(of: c) ?? dePartida.count
     }
 
     /// QUÉ ES ESTO, SIN PREGUNTARLE A NADIE.

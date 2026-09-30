@@ -81,7 +81,7 @@ struct ResumenCerrada: View {
                     }
                 }
 
-                Grupo {
+                Bloque {
                     Button { aChinola = true } label: {
                         FilaAjuste(titulo: "Chinola",
                                    detalle: lista.chinolaNota.isEmpty ? "Sin pasar todavía" : lista.chinolaNota) {

@@ -25,7 +25,7 @@ struct CuadreView: View {
 
     private var ajustes: Ajustes { Almacen.ajustes(ctx, de: sesion.usuario?.id ?? "") }
     private var c: Almacen.Cuentas { Almacen.cuentas(ctx, del: dia) }
-    private var hayAlgo: Bool { c.vendido > 0 || c.comprado > 0 || c.porCobrar > 0 }
+    private var hayAlgo: Bool { c.vendido > 0 || c.comprado > 0 || c.porCobrar > 0 || c.regalado > 0 }
 
     var body: some View {
         NavigationStack {
@@ -35,6 +35,7 @@ struct CuadreView: View {
                     if hayAlgo {
                         tarjetaGanancia
                         desglose
+                        loQueSalioSinCobrar
                         dondeEsta
                         acciones
                     } else {
@@ -105,9 +106,13 @@ struct CuadreView: View {
     }
 
     private var desglose: some View {
-        Grupo {
+        Bloque {
             linea("Vendiste", Formato.pesos(c.vendido, moneda: ajustes.moneda))
             linea("Te costó la mercancía", "− " + Formato.pesos(c.costo, moneda: ajustes.moneda))
+            if c.regalado > 0 {
+                linea("Regalaste y donaste", "− " + Formato.pesos(c.regalado, moneda: ajustes.moneda),
+                      tinta: tema.acento700)
+            }
             linea("Gastaste en compras", "− " + Formato.pesos(c.comprado, moneda: ajustes.moneda))
             linea("Falta por cobrar", Formato.pesos(c.porCobrar, moneda: ajustes.moneda),
                   tinta: c.porCobrar > 0 ? tema.acento700 : nil, ultima: true)
@@ -117,6 +122,26 @@ struct CuadreView: View {
     private func linea(_ rotulo: String, _ valor: String, tinta: Color? = nil, ultima: Bool = false) -> some View {
         FilaAjuste(titulo: rotulo, ultima: ultima) {
             Text(valor).font(tema.texto(16, .bold)).foregroundStyle(tinta ?? tema.texto)
+        }
+    }
+
+    /// Lo que salió sin cobrarse, con nombre y apellido: el cuadre tiene que
+    /// poder decir a quién se le regaló qué.
+    @ViewBuilder
+    private var loQueSalioSinCobrar: some View {
+        if !c.salidas.isEmpty {
+            Rotulo("Salió sin cobrarse · \(c.salidas.count)").padding(.top, 6)
+            Bloque {
+                ForEach(Array(c.salidas.enumerated()), id: \.element.id) { i, o in
+                    FilaAjuste(titulo: o.cliente,
+                               detalle: "\(o.salida.etiqueta) · \(o.producto) · \(Formato.cantidad(o.cantidad)) \(o.unidad)",
+                               ultima: i == c.salidas.count - 1) {
+                        Text("− " + Formato.pesos(o.costoTotal, moneda: ajustes.moneda))
+                            .font(tema.texto(15, .bold))
+                            .foregroundStyle(tema.acento700)
+                    }
+                }
+            }
         }
     }
 
@@ -214,10 +239,12 @@ struct CuadreView: View {
         do {
             reporte = try await Reportes.delCuadre(.init(
                 fecha: Formato.fechaCorta(dia),
-                vendido: c.vendido, costo: c.costo, comprado: c.comprado, porCobrar: c.porCobrar,
-                encargos: c.cobrados.map {
+                vendido: c.vendido, costo: c.costo, comprado: c.comprado,
+                porCobrar: c.porCobrar, regalado: c.regalado,
+                encargos: (c.cobrados + c.salidas).map {
                     .init(cliente: $0.cliente, producto: $0.producto, unidad: $0.unidad,
-                          metodo: $0.metodo, cantidad: $0.cantidad, total: $0.total)
+                          metodo: $0.salida.cobra ? $0.metodo : $0.salida.etiqueta,
+                          cantidad: $0.cantidad, total: $0.total)
                 }))
         } catch {
             self.error = (error as? LocalizedError)?.errorDescription
