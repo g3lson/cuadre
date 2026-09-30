@@ -112,7 +112,7 @@ struct VentasView: View {
     private var encabezado: some View {
         HStack(alignment: .bottom) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(Formato.saludo() + ", " + (sesion.usuario?.nombre ?? "").split(separator: " ").first.map(String.init) ?? "")
+                Text(saludo)
                     .font(tema.texto(15)).foregroundStyle(tema.neutral700)
                 Text("Tus ventas").font(tema.titulo(34)).foregroundStyle(tema.texto)
             }
@@ -122,6 +122,15 @@ struct VentasView: View {
                 .accessibilityLabel("Empezar una venta")
         }
         .padding(.top, 8)
+    }
+
+    /// El compilador tarda una eternidad si esto se escribe dentro de la
+    /// vista: son cuatro operaciones encadenadas sobre opcionales y se pone a
+    /// probar combinaciones de tipos.
+    private var saludo: String {
+        let nombre = sesion.usuario?.nombre ?? ""
+        let pila = nombre.split(separator: " ").first.map(String.init) ?? ""
+        return pila.isEmpty ? Formato.saludo() : "\(Formato.saludo()), \(pila)"
     }
 
     /// UNA VENTA, DESDE FUERA.
