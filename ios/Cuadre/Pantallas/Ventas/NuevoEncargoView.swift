@@ -25,7 +25,6 @@ struct NuevoEncargoView: View {
     @State private var cantidad: Double = 1
     @State private var tarifa: Tarifa = .detal
     @State private var nota = ""
-    @State private var buscandoContacto = false
     @FocusState private var enElCliente: Bool
 
     private var ajustes: Ajustes { Almacen.ajustes(ctx, de: sesion.usuario?.id ?? "") }
@@ -51,7 +50,12 @@ struct NuevoEncargoView: View {
                             .focused($enElCliente)
                         // Quien vende ya tiene a sus clientes en la agenda:
                         // escribirlos a mano es copiar algo que ya está.
-                        Button { buscandoContacto = true } label: {
+                        Button {
+                            Contactos.elige { nombre, numero in
+                                cliente = nombre
+                                if !numero.isEmpty { telefono = numero }
+                            }
+                        } label: {
                             IconoView(icono: .persona, tamano: 20)
                         }
                         .buttonStyle(BotonRedondo())
@@ -187,14 +191,6 @@ struct NuevoEncargoView: View {
                     Button("Cancelar") { cerrar() }.foregroundStyle(tema.acento700)
                 }
             }
-        }
-        .sheet(isPresented: $buscandoContacto) {
-            SelectorDeContacto { nombre, numero in
-                cliente = nombre
-                if !numero.isEmpty { telefono = numero }
-                buscandoContacto = false
-            }
-            .ignoresSafeArea()
         }
         .onAppear {
             producto = catalogo.first

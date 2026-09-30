@@ -1,0 +1,10 @@
+/* El nombre de la app y los textos de permiso, en español.
+   Existir ya es media función: una carpeta `es.lproj` es lo que le dice al
+   sistema que esta app tiene español de verdad, y no solo una etiqueta en el
+   Info.plist. */
+"CFBundleDisplayName" = "Cuadre";
+"NSContactsUsageDescription" = "Para escoger un cliente de tu agenda sin escribirlo a mano.";
+"NSMicrophoneUsageDescription" = "Para dictar la lista en vez de escribirla.";
+"NSSpeechRecognitionUsageDescription" = "Para convertir lo que dictas en productos, dentro del propio teléfono.";
+"NSCameraUsageDescription" = "Para leer un recibo con la cámara.";
+"NSPhotoLibraryUsageDescription" = "Para poner el logo y la portada de tu negocio.";
