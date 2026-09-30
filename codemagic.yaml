@@ -189,10 +189,15 @@ workflows:
         # del registro que deja en /tmp.
         script: |
           set +e
+          # Los ajustes de compilación van por `--archive-xcargs`, no por
+          # `--archive-flags` (eso son argumentos de xcodebuild). Se repiten los
+          # que el propio Codemagic pone por defecto porque al pasar los nuestros
+          # se sustituyen, y sin `COMPILER_INDEX_STORE_ENABLE=NO` la compilación
+          # tarda el doble indexando lo que nadie va a mirar.
           xcode-project build-ipa \
             --project "$XCODE_PROJECT" \
             --scheme "$XCODE_SCHEME" \
-            --archive-flags="PROVISIONING_PROFILE_SPECIFIER=$PERFIL DEVELOPMENT_TEAM=$APPLE_TEAM_ID"
+            --archive-xcargs="COMPILER_INDEX_STORE_ENABLE=NO DEVELOPMENT_TEAM=$APPLE_TEAM_ID CODE_SIGN_STYLE=Manual 'CODE_SIGN_IDENTITY=Apple Distribution' 'PROVISIONING_PROFILE_SPECIFIER=$PERFIL'"
           ESTADO=$?
           if [ $ESTADO -ne 0 ]; then
             echo
