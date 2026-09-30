@@ -171,6 +171,37 @@ enum Demo {
             ctx.insert(Cliente(nombre: e.0, telefono: e.1))
         }
 
+        // ── Días anteriores de esta semana, para que el cuadre por semana
+        //    tenga de qué hablar. Un gráfico de una sola barra no es un gráfico.
+        let cal = Calendar.current
+        let atras: [(Int, String, [(String, String, Double, String)])] = [
+            (1, "Pescado del jueves", [("Ana Luisa", "Chillo entero", 6, "Efectivo"),
+                                       ("Pedro Santos", "Mero criollo", 4.5, "Transferencia")]),
+            (2, "Camarón del miércoles", [("Yulissa", "Camarones 21/25", 3, "Efectivo")]),
+            (4, "Pescado del lunes", [("Ramón", "Chillo entero", 12, "Transferencia"),
+                                      ("Doña Fela", "Mero criollo", 8, "Efectivo"),
+                                      ("Kelvin", "Camarones 21/25", 2.5, "Efectivo")]),
+        ]
+        for (dias, titulo, ventas) in atras {
+            guard let cuando = cal.date(byAdding: .day, value: -dias, to: .now) else { continue }
+            let e = Evento(titulo: titulo, fecha: cuando, estado: "cerrada")
+            e.grupoId = muelle.id
+            e.negocio = muelle.nombre
+            ctx.insert(e)
+            for (i, v) in ventas.enumerated() {
+                guard let pr = porNombre[v.1] else { continue }
+                let o = Encargo(eventoId: e.id, cliente: v.0, producto: pr.nombre, unidad: "lb",
+                                pedido: v.2, precioDetal: pr.precioDetal, precioMayor: pr.precioMayor,
+                                precioEspecial: pr.precioEspecial, costo: pr.costo)
+                o.cantidad = v.2
+                o.estado = "cobrado"
+                o.metodo = v.3
+                o.registradoPor = i % 2 == 0 ? "Gelson" : "Carlos"
+                o.cobradoEn = cal.date(byAdding: .hour, value: -(2 + i), to: cuando)
+                ctx.insert(o)
+            }
+        }
+
         try? ctx.save()
     }
 }

@@ -270,10 +270,23 @@ enum Almacen {
     @MainActor
     static func cuentas(_ ctx: ModelContext, del dia: Date) -> Cuentas {
         let cal = Calendar.current
+        let desde = cal.startOfDay(for: dia)
+        return cuentas(ctx, desde: desde,
+                       hasta: cal.date(byAdding: .day, value: 1, to: desde) ?? desde)
+    }
+
+    /// Lo mismo, pero de un tramo: `desde` incluido, `hasta` excluido.
+    ///
+    /// La semana y el mes son la misma cuenta que el día con otros límites. Se
+    /// escribe una vez y no dos, porque el día en que las dos versiones dejen
+    /// de decir lo mismo nadie se va a enterar hasta que cuadre mal.
+    @MainActor
+    static func cuentas(_ ctx: ModelContext, desde: Date, hasta: Date) -> Cuentas {
         var c = Cuentas()
+        let dentro = { (f: Date) in f >= desde && f < hasta }
 
         let eventos = ((try? ctx.fetch(FetchDescriptor<Evento>())) ?? [])
-            .filter { $0.vivo && cal.isDate($0.fecha, inSameDayAs: dia) }
+            .filter { $0.vivo && dentro($0.fecha) }
         for e in eventos {
             for o in encargos(ctx, de: e.id) {
                 // Lo que no se cobra cuenta igual: sale del inventario y costó
@@ -299,7 +312,7 @@ enum Almacen {
         }
 
         let listas = ((try? ctx.fetch(FetchDescriptor<Lista>())) ?? [])
-            .filter { $0.vivo && $0.cerrada && cal.isDate($0.cerradaEn ?? .distantPast, inSameDayAs: dia) }
+            .filter { $0.vivo && $0.cerrada && dentro($0.cerradaEn ?? .distantPast) }
         for l in listas { c.comprado += gastado(ctx, en: l) }
 
         return c

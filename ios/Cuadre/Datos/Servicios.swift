@@ -231,6 +231,9 @@ enum Reportes {
         /// A nombre de qué negocio se despachó el día. Corona el reporte: es
         /// el papel que se le enseña a un socio o a un cliente.
         var negocio: String = ""
+        /// El último día del tramo, si el reporte es de una semana o un mes.
+        /// Vacío = es de un solo día.
+        var hasta: String = ""
         let encargos: [EncargoReporte]
     }
 

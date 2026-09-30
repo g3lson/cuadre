@@ -13,6 +13,11 @@ struct CuadreView: View {
     @Environment(Sesion.self) private var sesion
 
     @State private var dia = Date()
+    /// Día, semana o mes. El cuadre de verdad es el del día —se cierra el
+    /// mostrador y se cuenta—, pero «¿cómo fue la semana?» es una pregunta que
+    /// también se hace, y sumarla a mano de siete pantallas no es contestarla.
+    @State private var periodo: Periodo = Demo.abre("semana") ? .semana
+        : (Demo.abre("mes") ? .mes : .dia)
     @State private var reporte: Reportes.Compartible?
     @State private var haciendo = false
     @State private var error: String?
@@ -24,7 +29,10 @@ struct CuadreView: View {
     @Query(filter: #Predicate<Lista> { $0.borrado == nil }) private var listas: [Lista]
 
     private var ajustes: Ajustes { Almacen.ajustes(ctx, de: sesion.usuario?.id ?? "") }
-    private var c: Almacen.Cuentas { Almacen.cuentas(ctx, del: dia) }
+    private var rango: (desde: Date, hasta: Date) { periodo.rango(de: dia) }
+    private var c: Almacen.Cuentas {
+        Almacen.cuentas(ctx, desde: rango.desde, hasta: rango.hasta)
+    }
     private var hayAlgo: Bool { c.vendido > 0 || c.comprado > 0 || c.porCobrar > 0 || c.regalado > 0 }
 
     var body: some View {
@@ -32,8 +40,10 @@ struct CuadreView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     cabecera
+                    selectorDePeriodo
                     if hayAlgo {
                         tarjetaGanancia
+                        if periodo != .dia { grafico }
                         desglose
                         loQueSalioSinCobrar
                         dondeEsta
@@ -50,6 +60,7 @@ struct CuadreView: View {
             .fondoDelTema(tema)
         }
         .onChange(of: dia) { _, _ in reporte = nil }
+        .onChange(of: periodo) { _, _ in reporte = nil }
     }
 
     // MARK: - Trozos
@@ -57,27 +68,106 @@ struct CuadreView: View {
     private var cabecera: some View {
         HStack(alignment: .bottom) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(Formato.diaLargo(dia)).font(tema.texto(15)).foregroundStyle(tema.neutral700)
+                Text(periodo.titulo(dia))
+                    .font(tema.texto(15)).foregroundStyle(tema.neutral700)
+                    .lineLimit(1).minimumScaleFactor(0.8)
                 Text("El cuadre").font(tema.titulo(38)).foregroundStyle(tema.texto)
             }
-            Spacer()
+            Spacer(minLength: 6)
             HStack(spacing: 4) {
                 Button { mueve(-1) } label: {
                     IconoView(icono: .atras, tamano: 18)
                 }
                 .buttonStyle(BotonRedondo())
-                .accessibilityLabel("Día anterior")
+                .accessibilityLabel("Anterior")
 
                 Button { mueve(1) } label: {
                     IconoView(icono: .chevron, tamano: 18)
                 }
                 .buttonStyle(BotonRedondo())
-                .disabled(Calendar.current.isDateInToday(dia))
-                .opacity(Calendar.current.isDateInToday(dia) ? 0.4 : 1)
-                .accessibilityLabel("Día siguiente")
+                .disabled(enElPresente)
+                .opacity(enElPresente ? 0.4 : 1)
+                .accessibilityLabel("Siguiente")
             }
         }
         .padding(.top, 10)
+    }
+
+    /// Si lo que se está mirando es el tramo de hoy. Ir hacia adelante desde
+    /// aquí es mirar cuentas que todavía no existen.
+    private var enElPresente: Bool {
+        periodo.rango(de: .now).desde == rango.desde
+    }
+
+    private var selectorDePeriodo: some View {
+        HStack(spacing: 2) {
+            ForEach(Periodo.allCases) { p in
+                Button {
+                    withAnimation(.snappy(duration: 0.2)) { periodo = p }
+                } label: {
+                    Text(p.etiqueta)
+                        .font(tema.texto(14, .heavy))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 38)
+                        .background(periodo == p ? tema.superficie : .clear,
+                                    in: Capsule())
+                        .foregroundStyle(periodo == p ? tema.texto : tema.neutral700)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(3)
+        .background(tema.neutral200, in: Capsule())
+    }
+
+    /// LO QUE GANASTE CADA DÍA.
+    ///
+    /// Una cifra de la semana dice cuánto, pero no dice cuándo. Siete barras
+    /// dicen que el sábado hizo lo que los otros seis juntos, que es lo que de
+    /// verdad cambia lo que uno hace el sábado que viene.
+    private var grafico: some View {
+        let dias = periodo.dias(de: dia)
+        let valores = dias.map { d -> Double in
+            Almacen.cuentas(ctx, del: d).ganancia
+        }
+        let techo = max(valores.map(\.magnitude).max() ?? 1, 1)
+        // En un mes no caben treinta rótulos: se marcan los lunes.
+        let cal = Calendar.current
+
+        return VStack(alignment: .leading, spacing: 8) {
+            Text("Cada día").font(tema.texto(13, .bold)).foregroundStyle(tema.neutral700)
+
+            HStack(alignment: .bottom, spacing: periodo == .mes ? 2 : 6) {
+                ForEach(Array(dias.enumerated()), id: \.offset) { i, d in
+                    let v = valores[i]
+                    let hoy = cal.isDateInToday(d)
+                    VStack(spacing: 5) {
+                        Spacer(minLength: 0)
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(v < 0 ? tema.acento700
+                                  : (v == 0 ? tema.neutral500.opacity(0.25) : tema.acento2_700))
+                            .frame(height: max(3, 84 * (v.magnitude / techo)))
+                        if periodo == .semana {
+                            Text(Formato.inicialDelDia(d))
+                                .font(tema.texto(10, .heavy))
+                                .foregroundStyle(hoy ? tema.texto : tema.neutral500)
+                        } else {
+                            // En el mes, un punto bajo los lunes en vez de
+                            // treinta números que no se leen.
+                            Circle()
+                                .fill(cal.component(.weekday, from: d) == 2
+                                      ? tema.neutral500 : .clear)
+                                .frame(width: 3, height: 3)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 104)
+                }
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(tema.superficie, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
     }
 
     private var tarjetaGanancia: some View {
@@ -94,7 +184,7 @@ struct CuadreView: View {
                     .lineLimit(1).minimumScaleFactor(0.6)
                 Text(c.vendido > 0
                      ? "Margen de \(Int((c.margen * 100).rounded()))% sobre lo vendido"
-                     : "Todavía no has cobrado nada hoy")
+                     : "Todavía no has cobrado nada")
                     .font(tema.texto(14))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -210,9 +300,26 @@ struct CuadreView: View {
         .padding(.top, 8)
     }
 
+    /// Qué se dice cuando no hay cuentas. No es lo mismo «hoy todavía no» que
+    /// «ese día no hubo nada»: lo primero es que el día no ha terminado.
+    private var sinNadaTodavia: String {
+        guard enElPresente else {
+            switch periodo {
+            case .dia: return "Ese día no hubo movimiento"
+            case .semana: return "Esa semana no hubo movimiento"
+            case .mes: return "Ese mes no hubo movimiento"
+            }
+        }
+        switch periodo {
+        case .dia: return "Hoy todavía no hay nada"
+        case .semana: return "Esta semana todavía no hay nada"
+        case .mes: return "Este mes todavía no hay nada"
+        }
+    }
+
     private var vacio: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(Calendar.current.isDateInToday(dia) ? "Hoy todavía no hay nada" : "Ese día no hubo movimiento")
+            Text(sinNadaTodavia)
                 .font(tema.titulo(24)).foregroundStyle(tema.texto)
             Text("Aquí sale lo que cobraste, lo que te costó la mercancía y lo que gastaste comprando. Se llena solo según vas cerrando compras y cobrando encargos.")
                 .font(tema.texto(15)).foregroundStyle(tema.neutral700)
@@ -238,9 +345,10 @@ struct CuadreView: View {
         return nombres.count == 1 ? (nombres.first ?? "") : ""
     }
 
-    private func mueve(_ dias: Int) {
-        guard let nuevo = Calendar.current.date(byAdding: .day, value: dias, to: dia) else { return }
-        if dias > 0, nuevo > Date() { return }
+    private func mueve(_ pasos: Int) {
+        guard let nuevo = Calendar.current.date(byAdding: periodo.paso, value: pasos, to: dia)
+        else { return }
+        if pasos > 0, periodo.rango(de: nuevo).desde > periodo.rango(de: .now).desde { return }
         withAnimation(.snappy(duration: 0.2)) { dia = nuevo }
     }
 
@@ -249,11 +357,16 @@ struct CuadreView: View {
         error = nil
         defer { haciendo = false }
         do {
+            // El tramo va por sus dos extremos: el servidor titula «Del 1 al 7»
+            // sin tener que saber qué es una semana.
+            let ultimo = Calendar.current.date(byAdding: .day, value: -1, to: rango.hasta)
+                ?? rango.desde
             reporte = try await Reportes.delCuadre(.init(
-                fecha: Formato.fechaCorta(dia),
+                fecha: Formato.fechaCorta(rango.desde),
                 vendido: c.vendido, costo: c.costo, comprado: c.comprado,
                 porCobrar: c.porCobrar, regalado: c.regalado,
                 negocio: negocioDelDia,
+                hasta: periodo == .dia ? "" : Formato.fechaCorta(ultimo),
                 encargos: (c.cobrados + c.salidas).map {
                     .init(cliente: $0.cliente, producto: $0.producto, unidad: $0.unidad,
                           metodo: $0.salida.cobra ? $0.metodo : $0.salida.etiqueta,

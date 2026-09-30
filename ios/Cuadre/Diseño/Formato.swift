@@ -64,6 +64,31 @@ enum Formato {
         return df.string(from: f).prefix(1).uppercased() + df.string(from: f).dropFirst()
     }
 
+    /// «29 sep», para los extremos de una semana.
+    static func diaCorto(_ f: Date) -> String {
+        let df = DateFormatter()
+        df.locale = esDO
+        df.setLocalizedDateFormatFromTemplate("d MMM")
+        return df.string(from: f)
+    }
+
+    /// «Septiembre de 2026», para el encabezado de un mes.
+    static func mesLargo(_ f: Date) -> String {
+        let df = DateFormatter()
+        df.locale = esDO
+        df.dateFormat = "MMMM 'de' yyyy"
+        let s = df.string(from: f)
+        return s.prefix(1).uppercased() + s.dropFirst()
+    }
+
+    /// La inicial del día para el eje del gráfico: L M M J V S D.
+    static func inicialDelDia(_ f: Date) -> String {
+        let df = DateFormatter()
+        df.locale = esDO
+        df.dateFormat = "EEEEE"
+        return df.string(from: f).uppercased()
+    }
+
     static func hora(_ f: Date) -> String {
         let df = DateFormatter()
         df.locale = esDO

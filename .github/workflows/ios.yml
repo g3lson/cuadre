@@ -177,6 +177,7 @@ jobs:
           captura 17-el-negocio ajustes negocio
           captura 18-confirmar-cobro ventas confirmar
           captura 19-nueva-venta ventas evento
+          captura 23-cuadre-semana cuadre semana
 
           # Los otros dos temas, para ver que el cambio es solo de tokens.
           captura 20-mercado tienda nada mercado

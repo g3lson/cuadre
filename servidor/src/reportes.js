@@ -230,7 +230,12 @@ function dibujaCuadre(doc, d) {
   const comprado = Number(d.comprado || 0), porCobrar = Number(d.porCobrar || 0);
   const regalado = Number(d.regalado || 0);
   const ganancia = vendido - costo - regalado;
-  let y = cabecera(doc, 'El cuadre', fechaLarga(d.fecha), d.negocio);
+  // Un reporte de una semana o un mes lleva sus dos extremos. El servidor no
+  // sabe qué es una semana ni tiene por qué: le llegan los dos días.
+  const cuando = d.hasta
+    ? `Del ${fechaLarga(d.fecha)} al ${fechaLarga(d.hasta)}`
+    : fechaLarga(d.fecha);
+  let y = cabecera(doc, 'El cuadre', cuando, d.negocio);
 
   doc.roundedRect(IZQ, y, ancho(doc), 100, 18).fill(SALVIA);
   doc.font('Helvetica').fontSize(11).fillColor('#e1eecc').text('Te quedó de ganancia', IZQ + 22, y + 20, { lineBreak: false });
@@ -347,7 +352,7 @@ th.d,th.n{text-align:right}
 </style></head><body><main>
 <div class="marca"><span class="punto"></span>${d.negocio ? `${esc(String(d.negocio).slice(0, 48))}<small>con Cuadre</small>` : 'cuadre<small>de FENTE</small>'}</div>
 <h1>${esc(esCuadre ? 'El cuadre' : d.titulo || 'Compra')}</h1>
-<p class="sub">${esc([d.tienda, fechaLarga(d.fecha)].filter(Boolean).join(' · '))}</p>
+<p class="sub">${esc([d.tienda, d.hasta ? `Del ${fechaLarga(d.fecha)} al ${fechaLarga(d.hasta)}` : fechaLarga(d.fecha)].filter(Boolean).join(' · '))}</p>
 <div class="cifras">${tarjetas.map(([r2, v, bien]) => `<div class="cifra${bien ? ' bien' : ''}"><span>${esc(r2)}</span><strong>${esc(v)}</strong></div>`).join('')}</div>
 <table><thead>${cabezas}</thead><tbody>${filas || '<tr><td colspan="4" class="d">Nada todavía.</td></tr>'}</tbody></table>
 <div class="total"><span>${esCuadre ? 'Ganancia' : 'Total pagado'}</span><b>${pesos(esCuadre ? vendido - costo - regalado : pagado)}</b></div>
