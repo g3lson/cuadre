@@ -319,7 +319,7 @@ struct DatosEncargo: DatosDe {
     var unidad = "lb"; var pedido: Double = 1; var cantidad: Double = 1; var tarifa = "detal"
     var precioDetal: Double = 0; var precioMayor: Double = 0; var precioEspecial: Double = 0
     var costo: Double = 0; var estado = "pendiente"; var metodo = ""; var nota = ""
-    var clase = "venta"
+    var clase = "venta"; var registradoPor = ""
     var cobradoEn: Date?
 
     init(_ m: Encargo) {
@@ -327,7 +327,7 @@ struct DatosEncargo: DatosDe {
         unidad = m.unidad; pedido = m.pedido; cantidad = m.cantidad; tarifa = m.tarifa
         precioDetal = m.precioDetal; precioMayor = m.precioMayor; precioEspecial = m.precioEspecial
         costo = m.costo; estado = m.estado; metodo = m.metodo; nota = m.nota
-        clase = m.clase; cobradoEn = m.cobradoEn
+        clase = m.clase; registradoPor = m.registradoPor; cobradoEn = m.cobradoEn
     }
     init(from dec: Decoder) throws {
         let c = try dec.container(keyedBy: CodingKeys.self)
@@ -337,7 +337,8 @@ struct DatosEncargo: DatosDe {
         precioDetal = c.v(.precioDetal, 0); precioMayor = c.v(.precioMayor, 0)
         precioEspecial = c.v(.precioEspecial, 0); costo = c.v(.costo, 0)
         estado = c.v(.estado, "pendiente"); metodo = c.v(.metodo, ""); nota = c.v(.nota, "")
-        clase = c.v(.clase, "venta"); cobradoEn = c.opcional(.cobradoEn)
+        clase = c.v(.clase, "venta"); registradoPor = c.v(.registradoPor, "")
+        cobradoEn = c.opcional(.cobradoEn)
     }
 
     func vuelca(en m: Encargo) {
@@ -345,7 +346,7 @@ struct DatosEncargo: DatosDe {
         m.unidad = unidad; m.pedido = pedido; m.cantidad = cantidad; m.tarifa = tarifa
         m.precioDetal = precioDetal; m.precioMayor = precioMayor; m.precioEspecial = precioEspecial
         m.costo = costo; m.estado = estado; m.metodo = metodo; m.nota = nota
-        m.clase = clase; m.cobradoEn = cobradoEn
+        m.clase = clase; m.registradoPor = registradoPor; m.cobradoEn = cobradoEn
     }
 }
 
@@ -400,6 +401,7 @@ struct DatosAjustes: DatosDe {
     var verCantidad = true; var verPrecio = true; var verTotal = true; var verNota = false
     var nombreDetal = "Detal"; var nombreMayor = "Mayor"; var nombreEspecial = "Especial"
     var agrupar = true; var modeloIA = ""
+    var vistaVentas = "tarjetas"; var avisarListas = true
 
     init(_ m: Ajustes) {
         tema = m.tema; moneda = m.moneda; unidadPorDefecto = m.unidadPorDefecto
@@ -407,6 +409,7 @@ struct DatosAjustes: DatosDe {
         verCantidad = m.verCantidad; verPrecio = m.verPrecio; verTotal = m.verTotal; verNota = m.verNota
         nombreDetal = m.nombreDetal; nombreMayor = m.nombreMayor; nombreEspecial = m.nombreEspecial
         agrupar = m.agrupar; modeloIA = m.modeloIA
+        vistaVentas = m.vistaVentas; avisarListas = m.avisarListas
     }
     init(from dec: Decoder) throws {
         let c = try dec.container(keyedBy: CodingKeys.self)
@@ -418,6 +421,7 @@ struct DatosAjustes: DatosDe {
         nombreDetal = c.v(.nombreDetal, "Detal"); nombreMayor = c.v(.nombreMayor, "Mayor")
         nombreEspecial = c.v(.nombreEspecial, "Especial")
         agrupar = c.v(.agrupar, true); modeloIA = c.v(.modeloIA, "")
+        vistaVentas = c.v(.vistaVentas, "tarjetas"); avisarListas = c.v(.avisarListas, true)
     }
 
     func vuelca(en m: Ajustes) {
@@ -426,5 +430,6 @@ struct DatosAjustes: DatosDe {
         m.verCantidad = verCantidad; m.verPrecio = verPrecio; m.verTotal = verTotal; m.verNota = verNota
         m.nombreDetal = nombreDetal; m.nombreMayor = nombreMayor; m.nombreEspecial = nombreEspecial
         m.agrupar = agrupar; m.modeloIA = modeloIA
+        m.vistaVentas = vistaVentas; m.avisarListas = avisarListas
     }
 }

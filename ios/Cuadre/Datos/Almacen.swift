@@ -192,6 +192,8 @@ enum Almacen {
 
         lista.estado = "cerrada"
         lista.cerradaEn = cuando
+        // Ya se compró: recordarlo mañana sería recordar algo que ya pasó.
+        Avisos.olvida(lista.id)
         lista.notaCierre = faltaron.isEmpty
             ? "Compraste todo"
             : "Faltó " + faltaron.map(\.nombre).joined(separator: ", ")

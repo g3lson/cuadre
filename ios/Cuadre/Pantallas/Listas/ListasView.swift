@@ -92,6 +92,7 @@ struct ListasView: View {
                 if let l = aBorrar {
                     for a in Almacen.articulos(ctx, de: l.id) { a.entierro() }
                     l.entierro()
+                    Avisos.olvida(l.id)
                     if enTienda == l.id { enTienda = nil }
                     Task { await sincronizador?.sincroniza() }
                 }

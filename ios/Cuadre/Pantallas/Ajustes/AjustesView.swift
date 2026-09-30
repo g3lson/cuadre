@@ -193,6 +193,16 @@ struct AjustesView: View {
                     ValorYChevron(texto: ajustes.moneda == "RD$" ? "Peso dominicano (RD$)" : ajustes.moneda)
                 }
             }
+            FilaAjuste(titulo: "Recordar mis listas",
+                       detalle: "Un aviso la víspera de cada compra con fecha") {
+                Interruptor(encendido: Binding(
+                    get: { ajustes.avisarListas },
+                    set: { nuevo in
+                        ajustes.avisarListas = nuevo
+                        ajustes.toco()
+                        Task { if nuevo { await Avisos.pidePermiso() } }
+                    }))
+            }
             FilaAjuste(titulo: "Unidad por defecto") {
                 Menu {
                     ForEach(Unidad.todas) { u in

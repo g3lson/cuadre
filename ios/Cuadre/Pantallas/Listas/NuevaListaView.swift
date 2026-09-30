@@ -205,7 +205,10 @@ struct NuevaListaView: View {
             ctx.insert(Tienda(nombre: tienda))
         }
         try? ctx.save()
-        Task { await sincronizador?.sincroniza() }
+        Task {
+            await sincronizador?.sincroniza()
+            if ajustes.avisarListas { await Avisos.recuerda(nueva) }
+        }
         alCrear(nueva)
         cerrar()
     }

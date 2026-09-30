@@ -178,6 +178,10 @@ extension Sincronizable {
     var clase: String
     var metodo: String
     var nota: String
+    /// Quién lo anotó. En una venta a varias manos es la mitad de la
+    /// información: saber que se vendieron treinta libras no dice nada si no se
+    /// sabe quién las despachó.
+    var registradoPor: String
     var cobradoEn: Date?
     var actualizado: Date
     var borrado: Date?
@@ -204,6 +208,7 @@ extension Sincronizable {
         self.clase = Salida.venta.rawValue
         self.metodo = ""
         self.nota = ""
+        self.registradoPor = ""
         self.actualizado = .now
     }
 
@@ -257,6 +262,7 @@ extension Sincronizable {
     @Attribute(.unique) var id: String
     var nombre: String
     var telefono: String
+    var grupoId: String
     var actualizado: Date
     var borrado: Date?
     var subido: Date?
@@ -265,6 +271,7 @@ extension Sincronizable {
         self.id = id
         self.nombre = nombre
         self.telefono = telefono
+        self.grupoId = ""
         self.actualizado = .now
     }
 }
@@ -349,6 +356,10 @@ extension Sincronizable {
     var agrupar: Bool
     /// El modelo de IA que eligió esta persona. Vacío = el que traiga el servidor.
     var modeloIA: String
+    /// Cómo se ven los encargos: «tarjetas», «tabla» o «compacta».
+    var vistaVentas: String
+    /// Recordar las listas con fecha.
+    var avisarListas: Bool
     var actualizado: Date
     var borrado: Date?
     var subido: Date?
@@ -369,10 +380,13 @@ extension Sincronizable {
         self.nombreEspecial = "Especial"
         self.agrupar = true
         self.modeloIA = ""
+        self.vistaVentas = VistaVentas.tarjetas.rawValue
+        self.avisarListas = true
         self.actualizado = .now
     }
 
     var claveTema: Tema.Clave { Tema.Clave(rawValue: tema) ?? .barro }
+    var vista: VistaVentas { VistaVentas(rawValue: vistaVentas) ?? .tarjetas }
     func nombreTarifa(_ t: Tarifa) -> String {
         switch t {
         case .detal: return nombreDetal
@@ -435,6 +449,38 @@ enum Salida: String, CaseIterable, Codable, Identifiable {
         case .donacion: return "Igual que un regalo, pero se cuenta aparte para poder sumarlo."
         case .consumo: return "Se lo llevó el negocio o la casa. No es una venta."
         case .rebaja: return "Se cobra menos de la tarifa. La diferencia se ve en el cuadre."
+        }
+    }
+}
+
+/// CÓMO SE VEN LOS ENCARGOS.
+///
+/// Tres formas de mirar lo mismo, porque no se mira siempre igual: despachando
+/// hace falta el botón grande de cobrar; repasando al final del día hace falta
+/// verlos todos de un vistazo.
+enum VistaVentas: String, CaseIterable, Identifiable, Codable {
+    case tarjetas, tabla, compacta
+    var id: String { rawValue }
+
+    var etiqueta: String {
+        switch self {
+        case .tarjetas: return "Tarjetas"
+        case .tabla: return "Tabla"
+        case .compacta: return "Compacta"
+        }
+    }
+    var explicacion: String {
+        switch self {
+        case .tarjetas: return "Para despachar: cada encargo con su peso, su tarifa y el botón de cobrar."
+        case .tabla: return "Para repasar: una fila por encargo, en columnas."
+        case .compacta: return "Lo máximo en pantalla, sin botones."
+        }
+    }
+    var icono: String {
+        switch self {
+        case .tarjetas: return "rectangle.grid.1x2"
+        case .tabla: return "tablecells"
+        case .compacta: return "list.bullet"
         }
     }
 }

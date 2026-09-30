@@ -26,6 +26,9 @@ struct VentasView: View {
     @State private var comprobante: Encargo?
     @State private var aBorrar: Evento?
     @State private var abierto: Encargo?
+    /// Por quién se filtra. Vacío = todos. Se pueden marcar varios: «los míos y
+    /// los de Carlos» es una pregunta que se hace de verdad.
+    @State private var vendedores: Set<String> = []
 
     /// Cuál se está mirando. Por defecto, la última abierta; si se elige otra,
     /// esa. Sin esto solo se veía una venta y las demás no existían.
@@ -35,7 +38,15 @@ struct VentasView: View {
         if let id = elegido, let e = eventos.first(where: { $0.id == id }) { return e }
         return abiertos.first ?? eventos.first
     }
-    private var encargos: [Encargo] { todos.filter { $0.eventoId == evento?.id } }
+    private var todosLosDeLaVenta: [Encargo] { todos.filter { $0.eventoId == evento?.id } }
+    /// Quiénes han anotado algo en esta venta.
+    private var quienes: [String] {
+        Array(Set(todosLosDeLaVenta.map(\.registradoPor).filter { !$0.isEmpty })).sorted()
+    }
+    private var encargos: [Encargo] {
+        guard !vendedores.isEmpty else { return todosLosDeLaVenta }
+        return todosLosDeLaVenta.filter { vendedores.contains($0.registradoPor) }
+    }
     private var pendientes: [Encargo] { encargos.filter { !$0.cobrado } }
     private var cobrados: [Encargo] { encargos.filter(\.cobrado) }
     private var ajustes: Ajustes { Almacen.ajustes(ctx, de: sesion.usuario?.id ?? "") }
@@ -151,10 +162,11 @@ struct VentasView: View {
                 .padding(.top, 8)
 
                 resumen
+                barraDeVista
 
                 if !pendientes.isEmpty {
                     Rotulo("Por despachar · \(pendientes.count)").padding(.top, 4)
-                    ForEach(pendientes) { o in tarjeta(o) }
+                    porDespachar
                 }
 
                 Button {
@@ -170,7 +182,7 @@ struct VentasView: View {
 
                 if !cobrados.isEmpty {
                     Rotulo("Cobrados · \(cobrados.count)").padding(.top, 8)
-                    ForEach(cobrados) { o in filaCobrado(o) }
+                    yaCobrados
                 }
             }
             .padding(.horizontal, 20)
@@ -198,6 +210,162 @@ struct VentasView: View {
             cuadrito("Pesado", "\(Formato.cantidad(pesado)) lb")
             cuadrito("Listos", "\(cobrados.count)/\(encargos.count)")
         }
+    }
+
+    /// Cómo se mira y de quién. Las dos preguntas van juntas porque se hacen
+    /// juntas: «enséñame los de Carlos, en tabla».
+    @ViewBuilder
+    private var barraDeVista: some View {
+        HStack(spacing: 8) {
+            Picker("", selection: Binding(
+                get: { ajustes.vista },
+                set: { ajustes.vistaVentas = $0.rawValue; ajustes.toco(); try? ctx.save() })) {
+                ForEach(VistaVentas.allCases) { v in
+                    Image(systemName: v.icono).tag(v)
+                }
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 132)
+
+            if quienes.count > 1 {
+                ScrollView(.horizontal) {
+                    HStack(spacing: 6) {
+                        pastilla("Todos", puesta: vendedores.isEmpty) { vendedores = [] }
+                        ForEach(quienes, id: \.self) { quien in
+                            pastilla(quien, puesta: vendedores.contains(quien)) {
+                                if vendedores.contains(quien) { vendedores.remove(quien) }
+                                else { vendedores.insert(quien) }
+                            }
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+                .scrollIndicators(.hidden)
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func pastilla(_ texto: String, puesta: Bool, al: @escaping () -> Void) -> some View {
+        Button(action: al) {
+            Text(texto)
+                .font(tema.texto(13, .bold))
+                .lineLimit(1).fixedSize()
+                .padding(.horizontal, 12)
+                .frame(height: 32)
+                .background(puesta ? tema.neutral900 : tema.superficie, in: Capsule())
+                .foregroundStyle(puesta ? (tema.oscuro ? tema.texto : tema.neutral100) : tema.texto)
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Las tres maneras de mirar lo mismo
+
+    @ViewBuilder
+    private var porDespachar: some View {
+        switch ajustes.vista {
+        case .tarjetas: ForEach(pendientes) { o in tarjeta(o) }
+        case .tabla:
+            cabeceraTabla
+            ForEach(pendientes) { o in filaTabla(o) }
+        case .compacta: ForEach(pendientes) { o in filaCompacta(o) }
+        }
+    }
+
+    @ViewBuilder
+    private var yaCobrados: some View {
+        switch ajustes.vista {
+        case .tarjetas: ForEach(cobrados) { o in filaCobrado(o) }
+        case .tabla:
+            cabeceraTabla
+            ForEach(cobrados) { o in filaTabla(o) }
+        case .compacta: ForEach(cobrados) { o in filaCompacta(o) }
+        }
+    }
+
+    private var cabeceraTabla: some View {
+        HStack(spacing: 8) {
+            Text("CLIENTE").frame(maxWidth: .infinity, alignment: .leading)
+            Text("CANT.").frame(width: 58, alignment: .trailing)
+            Text("PRECIO").frame(width: 58, alignment: .trailing)
+            Text("TOTAL").frame(width: 68, alignment: .trailing)
+        }
+        .font(tema.texto(10, .heavy))
+        .tracking(0.7)
+        .foregroundStyle(tema.neutral700)
+        .padding(.horizontal, 12)
+        .padding(.bottom, 2)
+    }
+
+    private func filaTabla(_ o: Encargo) -> some View {
+        Button { abierto = o } label: {
+            HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(spacing: 5) {
+                        Text(o.cliente).font(tema.texto(14, .bold)).lineLimit(1)
+                        if !o.salida.cobra { marcaDeSalida(o) }
+                    }
+                    Text([o.producto, o.registradoPor.isEmpty ? nil : o.registradoPor]
+                        .compactMap { $0 }.joined(separator: " · "))
+                        .font(tema.texto(11.5)).foregroundStyle(tema.neutral700).lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Text("\(Formato.cantidad(o.cantidad)) \(o.unidad)")
+                    .font(tema.texto(13, .semibold)).foregroundStyle(tema.neutral700)
+                    .frame(width: 58, alignment: .trailing)
+                Text(o.precioAplicado > 0 ? Formato.entero(o.precioAplicado) : "—")
+                    .font(tema.texto(13)).foregroundStyle(tema.neutral700)
+                    .frame(width: 58, alignment: .trailing)
+                Text(o.salida.cobra ? Formato.entero(o.total) : "—")
+                    .font(tema.texto(14, .heavy))
+                    .frame(width: 68, alignment: .trailing)
+            }
+            .padding(.horizontal, 12)
+            .frame(minHeight: 48)
+            .foregroundStyle(o.cobrado ? tema.neutral700 : tema.texto)
+            .background(tema.superficie.opacity(o.cobrado ? 0.5 : 1),
+                        in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func filaCompacta(_ o: Encargo) -> some View {
+        Button { abierto = o } label: {
+            HStack(spacing: 10) {
+                Marcador(puesto: o.cobrado, tamano: 20)
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(spacing: 5) {
+                        Text(o.cliente).font(tema.texto(15, .semibold)).lineLimit(1)
+                        if !o.salida.cobra { marcaDeSalida(o) }
+                    }
+                    Text([o.producto + " · " + Formato.cantidad(o.cantidad) + " " + o.unidad,
+                          o.registradoPor.isEmpty ? nil : o.registradoPor]
+                        .compactMap { $0 }.joined(separator: " · "))
+                        .font(tema.texto(12)).foregroundStyle(tema.neutral700).lineLimit(1)
+                }
+                Spacer(minLength: 6)
+                Text(o.salida.cobra ? Formato.pesos(o.total, moneda: ajustes.moneda) : "—")
+                    .font(tema.texto(14, .heavy))
+            }
+            .padding(.horizontal, 4)
+            .frame(minHeight: 44)
+            .foregroundStyle(o.cobrado ? tema.neutral700 : tema.texto)
+            .contentShape(Rectangle())
+            .overlay(alignment: .bottom) {
+                Rectangle().fill(tema.divisor).frame(height: 1).padding(.leading, 30)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func marcaDeSalida(_ o: Encargo) -> some View {
+        Text(o.salida.etiqueta.uppercased())
+            .font(tema.texto(9, .heavy)).tracking(0.5)
+            .foregroundStyle(tema.acento800)
+            .padding(.horizontal, 6).padding(.vertical, 2)
+            .background(tema.acento200, in: Capsule())
     }
 
     private func cuadrito(_ rotulo: String, _ valor: String) -> some View {
@@ -228,7 +396,10 @@ struct VentasView: View {
                                     .background(tema.acento200, in: Capsule())
                             }
                         }
-                        Text("\(o.producto) · pidió \(Formato.cantidad(o.pedido)) \(o.unidad)")
+                        Text([
+                            "\(o.producto) · pidió \(Formato.cantidad(o.pedido)) \(o.unidad)",
+                            o.registradoPor.isEmpty ? nil : "lo anotó \(o.registradoPor)",
+                        ].compactMap { $0 }.joined(separator: " · "))
                             .font(tema.texto(13)).foregroundStyle(tema.neutral700)
                         if !o.nota.isEmpty {
                             Text("«\(o.nota)»").font(tema.texto(13)).italic().foregroundStyle(tema.acento700)

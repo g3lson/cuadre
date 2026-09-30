@@ -25,6 +25,7 @@ struct NuevoEncargoView: View {
     @State private var cantidad: Double = 1
     @State private var tarifa: Tarifa = .detal
     @State private var nota = ""
+    @State private var buscandoContacto = false
     @FocusState private var enElCliente: Bool
 
     private var ajustes: Ajustes { Almacen.ajustes(ctx, de: sesion.usuario?.id ?? "") }
@@ -45,8 +46,17 @@ struct NuevoEncargoView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     Text("Nuevo encargo").font(tema.titulo(32)).foregroundStyle(tema.texto)
 
-                    Campo(marcador: "Nombre del cliente", valor: $cliente, peso: .bold, tamano: 16)
-                        .focused($enElCliente)
+                    HStack(spacing: 8) {
+                        Campo(marcador: "Nombre del cliente", valor: $cliente, peso: .bold, tamano: 16)
+                            .focused($enElCliente)
+                        // Quien vende ya tiene a sus clientes en la agenda:
+                        // escribirlos a mano es copiar algo que ya está.
+                        Button { buscandoContacto = true } label: {
+                            IconoView(icono: .persona, tamano: 20)
+                        }
+                        .buttonStyle(BotonRedondo())
+                        .accessibilityLabel("Buscar en mis contactos")
+                    }
                         .onChange(of: cliente) { _, nuevo in
                             if let c = clientes.first(where: { $0.nombre == nuevo }) { telefono = c.telefono }
                         }
@@ -178,6 +188,14 @@ struct NuevoEncargoView: View {
                 }
             }
         }
+        .sheet(isPresented: $buscandoContacto) {
+            SelectorDeContacto { nombre, numero in
+                cliente = nombre
+                if !numero.isEmpty { telefono = numero }
+                buscandoContacto = false
+            }
+            .ignoresSafeArea()
+        }
         .onAppear {
             producto = catalogo.first
         }
@@ -193,6 +211,10 @@ struct NuevoEncargoView: View {
         o.tarifa = tarifa.rawValue
         o.nota = nota.trimmingCharacters(in: .whitespaces)
         o.telefono = telefono.trimmingCharacters(in: .whitespaces)
+        // Quién lo anotó. En una venta a varias manos es lo que permite después
+        // preguntar «¿y lo de Carlos?».
+        o.registradoPor = (sesion.usuario?.nombre ?? "")
+            .split(separator: " ").first.map(String.init) ?? (sesion.usuario?.inicial ?? "")
         ctx.insert(o)
 
         // El cliente se queda guardado para la próxima vez sin que nadie lo
@@ -200,7 +222,11 @@ struct NuevoEncargoView: View {
         if let ya = clientes.first(where: { $0.nombre == nombre }) {
             if ya.telefono != o.telefono, !o.telefono.isEmpty { ya.telefono = o.telefono; ya.toco() }
         } else {
-            ctx.insert(Cliente(nombre: nombre, telefono: o.telefono))
+            let c = Cliente(nombre: nombre, telefono: o.telefono)
+            // Hereda el grupo de la venta: así el cliente que uno guarda lo ven
+            // los demás que despachan en esa misma venta.
+            c.grupoId = evento.grupoId
+            ctx.insert(c)
         }
         evento.toco()
         try? ctx.save()

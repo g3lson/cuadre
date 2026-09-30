@@ -24,6 +24,7 @@ struct Raiz: View {
     struct Invitacion: Identifiable { let id = UUID(); let codigo: String }
 
     @Query(filter: #Predicate<Ajustes> { $0.borrado == nil }) private var todosLosAjustes: [Ajustes]
+    @Query(filter: #Predicate<Lista> { $0.borrado == nil }) private var listas: [Lista]
 
     private var ajustes: Ajustes? {
         guard let id = sesion.usuario?.id else { return nil }
@@ -63,7 +64,16 @@ struct Raiz: View {
         .onChange(of: fase) { _, nueva in
             // Al volver a la app se sincroniza: es cuando hay más probabilidad
             // de que otro dispositivo haya escrito algo.
-            if nueva == .active { Task { await sincronizador?.sincroniza() } }
+            if nueva == .active {
+                Task {
+                    await sincronizador?.sincroniza()
+                    await repasaAvisos()
+                }
+            }
+        }
+        .onChange(of: sincronizador?.ultima) { _, _ in
+            // Una lista creada en el otro teléfono también tiene que avisar aquí.
+            Task { await repasaAvisos() }
         }
         .onOpenURL { url in
             manda(url)
@@ -151,6 +161,13 @@ extension Raiz {
         if trozos.first == "invitacion" || url.host == "invitacion", let codigo = trozos.last, codigo != "invitacion" {
             invitacion = Invitacion(codigo: codigo)
         }
+    }
+}
+
+extension Raiz {
+    fileprivate func repasaAvisos() async {
+        guard ajustes?.avisarListas ?? true else { return }
+        await Avisos.repasa(listas)
     }
 }
 

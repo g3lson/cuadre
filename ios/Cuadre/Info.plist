@@ -50,11 +50,19 @@
 		</dict>
 	</array>
 
-	<!-- Solo de pie: es una app que se usa con una mano en el pasillo del súper,
-	     y el apaisado no aporta nada a una lista. -->
+	<!-- En el teléfono, solo de pie: se usa con una mano en el pasillo del
+	     súper y el apaisado no aporta nada a una lista. En el iPad sí gira:
+	     ahí la pantalla da para ver la tabla entera. -->
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
