@@ -20,7 +20,13 @@ struct FichaEncargoView: View {
 
     @Bindable var encargo: Encargo
     let ajustes: Ajustes
+    /// Entre quiénes se puede repartir este cobro.
+    var gente: [String] = []
+    var yo: String = ""
     var alCobrar: (Encargo) -> Void
+
+    /// El método con el que se iba a cobrar, esperando un «sí».
+    @State private var porConfirmar: String?
 
     private enum Derivado { case total, cantidad }
     @State private var cantidad = ""
@@ -69,6 +75,22 @@ struct FichaEncargoView: View {
             }
         }
         .onAppear { carga() }
+        .sheet(item: Binding(get: { porConfirmar.map(Metodo.init) },
+                             set: { porConfirmar = $0?.nombre })) { m in
+            ConfirmarCobroView(encargo: encargo, metodo: m.nombre, moneda: moneda,
+                               gente: gente,
+                               aNombreDe: encargo.registradoPor.isEmpty
+                                   ? yo : encargo.registradoPor) { quien in
+                cobraYa(m.nombre, quien)
+            }
+        }
+    }
+
+    /// Un `String` no es `Identifiable` y `sheet(item:)` lo pide.
+    private struct Metodo: Identifiable {
+        let nombre: String
+        var id: String { nombre }
+        init(_ nombre: String) { self.nombre = nombre }
     }
 
     // MARK: - Trozos
@@ -222,8 +244,40 @@ struct FichaEncargoView: View {
                     in: RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
+    /// A nombre de quién queda. En el mostrador uno anota por el compañero que
+    /// tiene las manos llenas; el cuadre de la noche tiene que decir quién
+    /// despachó, no quién tocó el botón.
+    @ViewBuilder
+    private var quienLoAnoto: some View {
+        if gente.count > 1 {
+            Menu {
+                ForEach(gente, id: \.self) { quien in
+                    Button {
+                        encargo.registradoPor = quien
+                        encargo.toco()
+                        guarda()
+                    } label: {
+                        if quien == encargo.registradoPor {
+                            Label(quien, systemImage: "checkmark")
+                        } else { Text(quien) }
+                    }
+                }
+            } label: {
+                Bloque {
+                    FilaAjuste(titulo: "Lo anotó", ultima: true) {
+                        ValorYChevron(texto: encargo.registradoPor.isEmpty
+                                      ? yo : encargo.registradoPor)
+                    }
+                }
+                .foregroundStyle(tema.texto)
+            }
+        }
+    }
+
     @ViewBuilder
     private var acciones: some View {
+        quienLoAnoto
+
         if encargo.cobrado {
             Button("Volver a dejarlo pendiente") {
                 encargo.estado = "pendiente"
@@ -335,8 +389,14 @@ struct FichaEncargoView: View {
         encargo.toco()
     }
 
+    /// Con la pantalla protegida esto no cobra: pregunta.
     private func cobra(_ metodo: String) {
+        if ajustes.confirmarCobro { porConfirmar = metodo } else { cobraYa(metodo, "") }
+    }
+
+    private func cobraYa(_ metodo: String, _ quien: String) {
         UINotificationFeedbackGenerator().notificationOccurred(.success)
+        if !quien.isEmpty { encargo.registradoPor = quien }
         encargo.estado = "cobrado"
         encargo.metodo = metodo
         encargo.cobradoEn = .now

@@ -29,6 +29,19 @@ struct VentasView: View {
     /// Por quién se filtra. Vacío = todos. Se pueden marcar varios: «los míos y
     /// los de Carlos» es una pregunta que se hace de verdad.
     @State private var vendedores: Set<String> = []
+    /// El encargo que espera un «sí» y con qué método se iba a cobrar.
+    @State private var porConfirmar: PorCobrar?
+    /// Con quién se puede repartir un cobro: los del grupo más los que ya han
+    /// anotado algo aquí. Se pide al servidor porque los permisos no se
+    /// sincronizan como los datos.
+    @State private var companeros: [String] = []
+
+    /// Un cobro esperando confirmación.
+    private struct PorCobrar: Identifiable {
+        let encargo: Encargo
+        let metodo: String
+        var id: String { encargo.id + metodo }
+    }
 
     /// Cuál se está mirando. Por defecto, la última abierta; si se elige otra,
     /// esa. Sin esto solo se veía una venta y las demás no existían.
@@ -48,7 +61,15 @@ struct VentasView: View {
         return todosLosDeLaVenta.filter { vendedores.contains($0.registradoPor) }
     }
     private var pendientes: [Encargo] { encargos.filter { !$0.cobrado } }
-    private var cobrados: [Encargo] { encargos.filter(\.cobrado) }
+    /// Los cobrados van **del más nuevo al más viejo**: lo último que pasó por
+    /// el mostrador es lo que uno quiere ver sin bajar, y es lo que se deshace
+    /// cuando fue un error. Los que no tienen hora (venían de antes de que se
+    /// guardara) se van al final.
+    private var cobrados: [Encargo] {
+        encargos.filter(\.cobrado).sorted {
+            ($0.cobradoEn ?? .distantPast) > ($1.cobradoEn ?? .distantPast)
+        }
+    }
     private var ajustes: Ajustes { Almacen.ajustes(ctx, de: sesion.usuario?.id ?? "") }
 
     var body: some View {
@@ -60,6 +81,9 @@ struct VentasView: View {
             .onAppear {
                 if Demo.abre("comprobante"), comprobante == nil { comprobante = cobrados.first }
             }
+            .task(id: evento?.id) {
+                if let evento { await cargaCompaneros(evento) }
+            }
         }
         .sheet(isPresented: $nuevoEncargo) {
             if let evento {
@@ -70,8 +94,17 @@ struct VentasView: View {
             NuevoEventoView().hojaDeCuadre(tema)
         }
         .sheet(item: $abierto) { o in
-            FichaEncargoView(encargo: o, ajustes: ajustes) { cobrado in comprobante = cobrado }
+            FichaEncargoView(encargo: o, ajustes: ajustes, gente: gente,
+                             yo: yo) { cobrado in comprobante = cobrado }
                 .hojaDeCuadre(tema)
+        }
+        .sheet(item: $porConfirmar) { p in
+            ConfirmarCobroView(encargo: p.encargo, metodo: p.metodo,
+                               moneda: ajustes.moneda, gente: gente,
+                               aNombreDe: p.encargo.registradoPor.isEmpty
+                                   ? yo : p.encargo.registradoPor) { quien in
+                cobraYa(p.encargo, p.metodo, aNombreDe: quien)
+            }
         }
         .sheet(item: $comprobante) { o in
             ComprobanteView(encargo: o, moneda: ajustes.moneda).hojaDeCuadre(tema)
@@ -329,6 +362,7 @@ struct VentasView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .contextMenu { if o.cobrado { menuDeCobrado(o) } }
     }
 
     private func filaCompacta(_ o: Encargo) -> some View {
@@ -358,6 +392,7 @@ struct VentasView: View {
             }
         }
         .buttonStyle(.plain)
+        .contextMenu { if o.cobrado { menuDeCobrado(o) } }
     }
 
     private func marcaDeSalida(_ o: Encargo) -> some View {
@@ -512,6 +547,32 @@ struct VentasView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .contextMenu { menuDeCobrado(o) }
+    }
+
+    /// Lo que se puede hacer con algo ya cobrado sin abrirlo: devolverlo a
+    /// pendiente si fue un error, o ponerlo a nombre de quien lo despachó.
+    @ViewBuilder
+    private func menuDeCobrado(_ o: Encargo) -> some View {
+        Button {
+            descobra(o)
+        } label: { Label("Volver a dejarlo pendiente", systemImage: "arrow.uturn.backward") }
+
+        if gente.count > 1 {
+            Menu {
+                ForEach(gente, id: \.self) { quien in
+                    Button {
+                        anota(o, aNombreDe: quien)
+                    } label: {
+                        if quien == o.registradoPor {
+                            Label(quien, systemImage: "checkmark")
+                        } else { Text(quien) }
+                    }
+                }
+            } label: { Label("Lo cobró…", systemImage: "person.2") }
+        }
+
+        Button { comprobante = o } label: { Label("Ver el comprobante", systemImage: "doc.text") }
     }
 
     private var sinEvento: some View {
@@ -532,15 +593,77 @@ struct VentasView: View {
         try? ctx.save()
     }
 
+    /// Cobrar. Si la pantalla está protegida, esto no cobra: pregunta.
     private func cobra(_ o: Encargo, _ metodo: String) {
+        if ajustes.confirmarCobro {
+            porConfirmar = PorCobrar(encargo: o, metodo: metodo)
+        } else {
+            cobraYa(o, metodo, aNombreDe: "")
+        }
+    }
+
+    private func cobraYa(_ o: Encargo, _ metodo: String, aNombreDe quien: String) {
         UINotificationFeedbackGenerator().notificationOccurred(.success)
+        // Lo de antes, para poder devolverlo tal cual estaba.
+        let antes = (o.estado, o.metodo, o.cobradoEn, o.registradoPor)
         o.estado = "cobrado"
         o.metodo = metodo
         o.cobradoEn = .now
+        if !quien.isEmpty { o.registradoPor = quien }
         o.toco()
         try? ctx.save()
         Task { await sincronizador?.sincroniza() }
         comprobante = o
+
+        sesion.avisa(o.salida.cobra
+                     ? "Cobrado a \(o.cliente)" : "\(o.salida.etiqueta) anotada",
+                     .bien, accion: "Deshacer") {
+            o.estado = antes.0; o.metodo = antes.1
+            o.cobradoEn = antes.2; o.registradoPor = antes.3
+            o.toco()
+            try? ctx.save()
+            Task { await sincronizador?.sincroniza() }
+        }
+    }
+
+    /// Volver a dejarlo pendiente. Marcar a alguien como que pagó cuando no ha
+    /// pagado se arregla aquí, sin borrar el encargo ni volverlo a escribir.
+    private func descobra(_ o: Encargo) {
+        UINotificationFeedbackGenerator().notificationOccurred(.warning)
+        o.estado = "pendiente"
+        o.metodo = ""
+        o.cobradoEn = nil
+        o.toco()
+        try? ctx.save()
+        Task { await sincronizador?.sincroniza() }
+        sesion.avisa("\(o.cliente) vuelve a quedar pendiente")
+    }
+
+    /// Pasar un encargo a nombre de otro. Se anota a quien despachó, no a quien
+    /// tocó el botón.
+    private func anota(_ o: Encargo, aNombreDe quien: String) {
+        o.registradoPor = quien
+        o.toco()
+        try? ctx.save()
+        Task { await sincronizador?.sincroniza() }
+    }
+
+    /// Lo que se le ofrece al menú de «lo cobra»: la gente del grupo y los que
+    /// ya han anotado algo en esta venta, sin repetidos.
+    private var gente: [String] {
+        var v = [yo]
+        for n in (companeros + quienes) where !n.isEmpty && !v.contains(n) { v.append(n) }
+        return v
+    }
+    private var yo: String {
+        let n = sesion.usuario?.nombre ?? ""
+        return n.isEmpty ? "Yo" : n
+    }
+
+    private func cargaCompaneros(_ e: Evento) async {
+        guard !e.grupoId.isEmpty else { companeros = []; return }
+        companeros = (try? await Compartir.miembros(de: e.grupoId, .grupo))?
+            .map(\.comoSeLlama) ?? []
     }
 }
 

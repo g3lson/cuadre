@@ -360,6 +360,10 @@ extension Sincronizable {
     var vistaVentas: String
     /// Recordar las listas con fecha.
     var avisarListas: Bool
+    /// Preguntar antes de dar algo por cobrado. Viene encendido: marcar a
+    /// alguien como que pagó cuando no ha pagado cuesta dinero de verdad, y el
+    /// error se descubre cuando ya se fue.
+    var confirmarCobro: Bool
     var actualizado: Date
     var borrado: Date?
     var subido: Date?
@@ -382,6 +386,7 @@ extension Sincronizable {
         self.modeloIA = ""
         self.vistaVentas = VistaVentas.tarjetas.rawValue
         self.avisarListas = true
+        self.confirmarCobro = true
         self.actualizado = .now
     }
 

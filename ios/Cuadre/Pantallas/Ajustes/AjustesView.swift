@@ -203,6 +203,12 @@ struct AjustesView: View {
                         Task { if nuevo { await Avisos.pidePermiso() } }
                     }))
             }
+            FilaAjuste(titulo: "Proteger la pantalla de ventas",
+                       detalle: "Preguntar antes de dar un encargo por cobrado") {
+                Interruptor(encendido: Binding(
+                    get: { ajustes.confirmarCobro },
+                    set: { ajustes.confirmarCobro = $0; ajustes.toco() }))
+            }
             FilaAjuste(titulo: "Unidad por defecto") {
                 Menu {
                     ForEach(Unidad.todas) { u in

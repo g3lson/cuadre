@@ -401,7 +401,7 @@ struct DatosAjustes: DatosDe {
     var verCantidad = true; var verPrecio = true; var verTotal = true; var verNota = false
     var nombreDetal = "Detal"; var nombreMayor = "Mayor"; var nombreEspecial = "Especial"
     var agrupar = true; var modeloIA = ""
-    var vistaVentas = "tarjetas"; var avisarListas = true
+    var vistaVentas = "tarjetas"; var avisarListas = true; var confirmarCobro = true
 
     init(_ m: Ajustes) {
         tema = m.tema; moneda = m.moneda; unidadPorDefecto = m.unidadPorDefecto
@@ -410,6 +410,7 @@ struct DatosAjustes: DatosDe {
         nombreDetal = m.nombreDetal; nombreMayor = m.nombreMayor; nombreEspecial = m.nombreEspecial
         agrupar = m.agrupar; modeloIA = m.modeloIA
         vistaVentas = m.vistaVentas; avisarListas = m.avisarListas
+        confirmarCobro = m.confirmarCobro
     }
     init(from dec: Decoder) throws {
         let c = try dec.container(keyedBy: CodingKeys.self)
@@ -422,6 +423,7 @@ struct DatosAjustes: DatosDe {
         nombreEspecial = c.v(.nombreEspecial, "Especial")
         agrupar = c.v(.agrupar, true); modeloIA = c.v(.modeloIA, "")
         vistaVentas = c.v(.vistaVentas, "tarjetas"); avisarListas = c.v(.avisarListas, true)
+        confirmarCobro = c.v(.confirmarCobro, true)
     }
 
     func vuelca(en m: Ajustes) {
@@ -431,5 +433,6 @@ struct DatosAjustes: DatosDe {
         m.nombreDetal = nombreDetal; m.nombreMayor = nombreMayor; m.nombreEspecial = nombreEspecial
         m.agrupar = agrupar; m.modeloIA = modeloIA
         m.vistaVentas = vistaVentas; m.avisarListas = avisarListas
+        m.confirmarCobro = confirmarCobro
     }
 }
