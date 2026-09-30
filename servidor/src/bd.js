@@ -142,6 +142,13 @@ CREATE TABLE IF NOT EXISTS ajustes_servidor (
 -- Para saber por dónde entra la gente y qué se usa, en agregado y sin contenido.
 CREATE TABLE IF NOT EXISTS uso (
   clave TEXT PRIMARY KEY, veces INTEGER NOT NULL DEFAULT 0, ultimo TEXT);
+
+-- Lo mismo pero por día, que es lo que se puede dibujar en una gráfica. El
+-- acumulado de arriba dice cuánto se ha usado algo desde siempre; esto dice si
+-- se está usando más o menos que la semana pasada, que es la pregunta real.
+CREATE TABLE IF NOT EXISTS uso_dia (
+  dia TEXT NOT NULL, clave TEXT NOT NULL, veces INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (dia, clave));
 `);
 
 /** Las tablas que el sincronizador conoce. Añadir una entidad es añadirla aquí. */
@@ -155,8 +162,12 @@ export const guarda = (clave, valor) => bd.prepare(
 export const lee = (clave) => bd.prepare('SELECT valor FROM ajustes_servidor WHERE clave = ?').get(clave)?.valor || null;
 
 export const cuenta = (clave) => {
+  const k = String(clave).slice(0, 60);
+  const t = ahora();
   bd.prepare(`INSERT INTO uso (clave, veces, ultimo) VALUES (?,1,?)
-    ON CONFLICT(clave) DO UPDATE SET veces = veces + 1, ultimo = excluded.ultimo`).run(String(clave).slice(0, 60), ahora());
+    ON CONFLICT(clave) DO UPDATE SET veces = veces + 1, ultimo = excluded.ultimo`).run(k, t);
+  bd.prepare(`INSERT INTO uso_dia (dia, clave, veces) VALUES (?,?,1)
+    ON CONFLICT(dia, clave) DO UPDATE SET veces = veces + 1`).run(t.slice(0, 10), k);
 };
 
 /** El nombre sin tildes ni mayúsculas, que es como se comparan los productos. */
@@ -168,6 +179,8 @@ export function barre() {
   bd.prepare("DELETE FROM chinola_espera WHERE expira <= ?").run(ahora());
   bd.prepare("DELETE FROM sesiones WHERE expira <= datetime('now','-30 days')").run();
   bd.prepare("DELETE FROM reportes WHERE expira IS NOT NULL AND expira <= ?").run(ahora());
+  // Noventa días de cifras por día dan de sobra para ver una tendencia.
+  bd.prepare("DELETE FROM uso_dia WHERE dia < date('now','-90 days')").run();
   // Las lápidas se guardan un mes: lo justo para que un teléfono que estuvo
   // apagado se entere de que algo se borró. Más tiempo es guardar basura.
   for (const t of TABLAS) {

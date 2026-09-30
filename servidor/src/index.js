@@ -17,6 +17,7 @@ import { sync } from './rutas/sync.js';
 import { listaDeTexto, listaDeRecibo, reciboDeTexto } from './ia.js';
 import * as chin from './chinola.js';
 import { guardaReporte, leeReporte, pdf, paginaReporte } from './reportes.js';
+import { arrancaRespaldos, estado as estadoRespaldos, respalda } from './respaldos.js';
 
 const app = express();
 app.set('trust proxy', 1);       // hay un Nginx delante; sin esto la IP es la del proxy
@@ -57,21 +58,87 @@ app.get('/api/salud', (req, res) => {
   res.json({ ok: true, version: config.version, ahora: ahora(), ia: hayIA(), correo: hayCorreo() });
 });
 
+/**
+ * CIFRAS PARA VIGÍA.
+ *
+ * La forma la manda Vigía: `totales` van a sus series, `diario` a su tabla de
+ * días, `tarjetas` se enseñan tal cual y `alertas` llegan al Telegram. Aquí no
+ * sale ni un nombre, ni un correo, ni un producto: solo cuántos.
+ *
+ * Vigía autentica con `Authorization: Bearer`; se acepta también `x-clave`
+ * porque es como se prueba a mano desde el servidor.
+ */
 app.get('/api/metricas', (req, res) => {
-  // Cifras agregadas para Vigía. Sin clave no se dice nada: cuántas personas y
-  // cuántas listas hay es información del negocio.
-  const clave = req.get('x-clave') || '';
-  if (!config.metricasClave || clave !== config.metricasClave) return res.status(401).json({ error: 'Clave inválida.' });
-  const uno = (sql) => bd.prepare(sql).get()?.n ?? 0;
+  const cab = req.get('authorization') || '';
+  const dada = cab.startsWith('Bearer ') ? cab.slice(7).trim() : (req.get('x-clave') || '');
+  if (!config.metricasClave || dada !== config.metricasClave) {
+    return res.status(401).json({ error: 'Clave inválida.' });
+  }
+
+  const uno = (sql, ...p) => bd.prepare(sql).get(...p)?.n ?? 0;
+  const respaldo = estadoRespaldos();
+
+  // Por día: los registros salen de cuándo nació cada cuenta; lo demás, del
+  // contador por día. Treinta días es lo que dibuja Vigía.
+  const dias = {};
+  const mete = (dia, clave, valor) => { (dias[dia] = dias[dia] || { dia })[clave] = valor; };
+  for (const f of bd.prepare(
+    `SELECT substr(creado,1,10) dia, COUNT(*) n FROM usuarios
+     WHERE creado >= date('now','-30 days') GROUP BY dia`).all()) mete(f.dia, 'registros', f.n);
+  for (const f of bd.prepare(
+    `SELECT dia, clave, veces FROM uso_dia WHERE dia >= date('now','-30 days')`).all()) {
+    const nombre = { 'reporte.compra': 'reportes', 'reporte.cuadre': 'reportes',
+                     'chinola.movimientos': 'chinola', 'ia.lista': 'ia',
+                     'ia.recibo': 'ia', 'ia.recibo.texto': 'ia',
+                     'sync.subida': 'sincronizaciones' }[f.clave];
+    if (nombre) mete(f.dia, nombre, (dias[f.dia]?.[nombre] || 0) + f.veces);
+  }
+
+  const alertas = [];
+  const horas = respaldo.ultimo ? (Date.now() - Date.parse(respaldo.ultimo)) / 3600e3 : Infinity;
+  if (horas > 48) {
+    alertas.push({ nivel: 'aviso', texto: respaldo.ultimo
+      ? `El último respaldo es de hace ${Math.round(horas)} horas.`
+      : 'Todavía no se ha hecho ningún respaldo.' });
+  }
+  if (!hayCorreo()) alertas.push({ nivel: 'aviso', texto: 'Sin proveedor de correo: nadie puede entrar con código.' });
+
   res.json({
-    version: config.version,
-    usuarios: uno('SELECT COUNT(*) n FROM usuarios'),
-    activos7d: uno("SELECT COUNT(DISTINCT usuario_id) n FROM sesiones WHERE ultimo_uso >= datetime('now','-7 days')"),
-    listas: uno('SELECT COUNT(*) n FROM listas WHERE borrado IS NULL'),
-    encargos: uno('SELECT COUNT(*) n FROM encargos WHERE borrado IS NULL'),
-    chinola: uno('SELECT COUNT(*) n FROM chinola'),
-    uso: bd.prepare('SELECT clave, veces FROM uso ORDER BY veces DESC LIMIT 40').all(),
+    nombre: 'Cuadre',
+    totales: {
+      usuarios: uno('SELECT COUNT(*) n FROM usuarios'),
+      activos7d: uno("SELECT COUNT(DISTINCT usuario_id) n FROM sesiones WHERE ultimo_uso >= datetime('now','-7 days')"),
+      listas: uno('SELECT COUNT(*) n FROM listas WHERE borrado IS NULL'),
+      articulos: uno('SELECT COUNT(*) n FROM articulos WHERE borrado IS NULL'),
+      encargos: uno('SELECT COUNT(*) n FROM encargos WHERE borrado IS NULL'),
+      catalogo: uno('SELECT COUNT(*) n FROM catalogo WHERE borrado IS NULL'),
+      chinolaConectadas: uno('SELECT COUNT(*) n FROM chinola'),
+      reportes: uno("SELECT COUNT(*) n FROM reportes WHERE clase != 'interno'"),
+    },
+    diario: Object.values(dias).sort((a, b) => a.dia.localeCompare(b.dia)),
+    tarjetas: [
+      { titulo: 'Versión', valor: config.version, estado: 'ok' },
+      { titulo: 'Último respaldo', nota: `${respaldo.cuantos} guardados · ${Math.round(respaldo.bytes / 1024)} KB`,
+        valor: respaldo.ultimo ? respaldo.ultimo.slice(0, 16).replace('T', ' ') : 'nunca',
+        estado: horas > 48 ? 'aviso' : 'ok' },
+      { titulo: 'IA', valor: hayIA() ? 'lista' : 'apagada', nota: 'solo modelos gratuitos',
+        estado: hayIA() ? 'ok' : 'aviso' },
+      { titulo: 'Correo', valor: hayCorreo() ? 'listo' : 'apagado', estado: hayCorreo() ? 'ok' : 'aviso' },
+    ],
+    alertas,
+    detalles: {
+      uso: Object.fromEntries(bd.prepare('SELECT clave, veces FROM uso ORDER BY veces DESC LIMIT 40')
+        .all().map((f) => [f.clave, f.veces])),
+    },
   });
+});
+
+app.post('/api/respaldo', (req, res) => {
+  if (!config.metricasClave || req.get('x-clave') !== config.metricasClave) {
+    return res.status(401).json({ error: 'Clave inválida.' });
+  }
+  try { res.json({ ok: true, archivo: respalda(), estado: estadoRespaldos() }); }
+  catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 /* ────────────────────────────── entrar ────────────────────────────── */
@@ -281,6 +348,8 @@ app.use((err, req, res, next) => {
 
 barre();
 setInterval(barre, 6 * 3600_000).unref();
+arrancaRespaldos();
+
 
 app.listen(config.puerto, () => {
   console.log(`[cuadre] ${config.version} en :${config.puerto} · sitio ${config.sitio} · ia ${hayIA() ? 'sí' : 'no'} · correo ${hayCorreo() ? 'sí' : 'no'}`);

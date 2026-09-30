@@ -49,6 +49,8 @@ before(async () => {
       CUADRE_BD: join(carpeta, 'prueba.db'),
       CUADRE_SITIO: BASE,          // «localhost» hace que el código salga por el registro
       CUADRE_SITIO_DIR: '',
+      CUADRE_METRICAS_CLAVE: 'clave-de-prueba',
+      CUADRE_IA_CLAVE: '',         // sin IA: se comprueba que lo diga en vez de romperse
     },
   });
   servidor.stdout.on('data', (d) => { salida += d; });
@@ -240,6 +242,40 @@ test('sin Chinola conectada, enviar avisa en vez de romperse', async () => {
   });
   assert.equal(r.estado, 409);
   assert.equal(r.cuerpo.sinConexion, true);
+});
+
+test('sin IA configurada, las rutas de IA lo dicen y no se rompen', async () => {
+  for (const [camino, cuerpo] of [
+    ['/api/ia/lista', { texto: 'dos galones de leche' }],
+    ['/api/ia/recibo-texto', { texto: '2.00 LECHE RICA GL 490.00' }],
+  ]) {
+    const r = await pide(camino, { method: 'POST', body: JSON.stringify(cuerpo) });
+    assert.equal(r.estado, 503, camino);
+    assert.match(r.cuerpo.error, /no está configurada/i);
+  }
+});
+
+test('el recibo sin texto se rechaza antes de llamar a nadie', async () => {
+  const r = await pide('/api/ia/recibo-texto', { method: 'POST', body: JSON.stringify({ texto: '   ' }) });
+  assert.equal(r.estado, 400);
+});
+
+test('el respaldo se hace y solo con la clave', async () => {
+  const sinClave = await pide('/api/respaldo', { method: 'POST' });
+  assert.equal(sinClave.estado, 401);
+
+  const r = await pide('/api/respaldo', { method: 'POST', headers: { 'x-clave': 'clave-de-prueba' } });
+  assert.equal(r.estado, 200, r.texto);
+  assert.ok(r.cuerpo.archivo.endsWith('.db'));
+  assert.equal(r.cuerpo.estado.cuantos, 1);
+  // Una copia de una base con datos no puede pesar cuatro bytes.
+  assert.ok(r.cuerpo.estado.bytes > 4096, 'el respaldo salió sospechosamente pequeño');
+
+  // Y la copia se puede abrir y tiene lo que había.
+  const { default: Database } = await import('better-sqlite3');
+  const copia = new Database(r.cuerpo.archivo, { readonly: true });
+  assert.ok(copia.prepare('SELECT COUNT(*) n FROM listas').get().n >= 1);
+  copia.close();
 });
 
 test('borrar la cuenta se lleva todo lo suyo', async () => {
