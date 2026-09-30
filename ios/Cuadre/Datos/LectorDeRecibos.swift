@@ -111,7 +111,7 @@ enum LectorDeRecibos {
         let sesion = LanguageModelSession(instructions: Instructions(reglas))
         let salida = try await sesion.respond(
             to: Prompt("Este es el texto de un recibo de compra dominicano:\n\n\(texto)"),
-            generating: ReciboLeido.self)
+            generating: ReciboGenerado.self)
         let r = salida.content
         return IA.Recibo(
             tienda: r.tienda,
@@ -127,20 +127,22 @@ enum LectorDeRecibos {
             })
     }
 
+    // Sin `private`: el macro `@Generable` genera código que nombra el tipo
+    // desde fuera, y con `private` no lo alcanza.
     @available(iOS 26.0, *)
     @Generable
-    private struct ReciboLeido {
+    struct ReciboGenerado {
         @Guide(description: "El nombre del supermercado o la tienda, tal como sale arriba del recibo.")
         var tienda: String
         @Guide(description: "El total que se pagó, solo el número.")
         var total: Double
         @Guide(description: "Una entrada por cada producto. Ni impuestos, ni propinas, ni descuentos, ni el total.")
-        var productos: [ProductoLeido]
+        var productos: [ProductoGenerado]
     }
 
     @available(iOS 26.0, *)
     @Generable
-    private struct ProductoLeido {
+    struct ProductoGenerado {
         @Guide(description: "El producto entero, con su variedad: «Azúcar crema», «Arroz selecto», «Leche entera».")
         var nombre: String
         @Guide(description: "Una de: lb, kg, oz, ud, doc, paq, saco, gal, L.")
