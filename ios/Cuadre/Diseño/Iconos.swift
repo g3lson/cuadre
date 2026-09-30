@@ -248,8 +248,11 @@ struct IconoView: View {
             let k = size.width / 24
             ctx.scaleBy(x: k, y: k)
             let estilo = StrokeStyle(lineWidth: grosor, lineCap: .round, lineJoin: .round)
+            // `.foreground` es el color que traiga el entorno, así que
+            // `IconoView(...).foregroundStyle(...)` funciona igual que en un
+            // `Image`, y un icono dentro de un botón hereda el color del botón.
             for t in icono.trazos() {
-                ctx.stroke(t, with: .foregroundColor, style: estilo)
+                ctx.stroke(t, with: .foreground, style: estilo)
             }
         }
         .frame(width: tamano, height: tamano)
