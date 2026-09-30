@@ -9,6 +9,9 @@ struct Raiz: View {
     @Environment(Sesion.self) private var sesion
     @Environment(\.modelContext) private var ctx
     @Environment(\.scenePhase) private var fase
+    /// En el iPad en horizontal la pastilla de abajo queda a un palmo del
+    /// pulgar y se come el ancho: ahí las pestañas van a un raíl de lado.
+    @Environment(\.horizontalSizeClass) private var ancho
 
     @State private var pestana: Pestana = Pestana(rawValue: Demo.pestana ?? "") ?? .listas
     @State private var sincronizador: Sincronizador?
@@ -96,23 +99,20 @@ struct Raiz: View {
     private var principal: some View {
         let mostrarVentas = ajustes?.modoVendedor ?? false
 
-        ZStack(alignment: .bottom) {
-            Group {
-                switch pestana {
-                case .listas:
-                    ListasView(enTienda: $enTienda, pestana: $pestana)
-                case .tienda:
-                    EnTiendaView(listaId: $enTienda, pestana: $pestana)
-                case .ventas:
-                    VentasView()
-                case .cuadre:
-                    CuadreView()
+        Group {
+            if ancho == .regular {
+                HStack(spacing: 0) {
+                    RailDePestanas(activa: $pestana, conVentas: mostrarVentas) {
+                        demoAjustes = true
+                    }
+                    pantalla
+                }
+            } else {
+                ZStack(alignment: .bottom) {
+                    pantalla
+                    BarraDePestanas(activa: $pestana, conVentas: mostrarVentas)
                 }
             }
-            .environment(\.sincronizador, sincronizador)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            BarraDePestanas(activa: $pestana, conVentas: mostrarVentas)
         }
         .onChange(of: mostrarVentas) { _, hay in
             if !hay, pestana == .ventas { pestana = .listas }
@@ -120,6 +120,28 @@ struct Raiz: View {
         .sheet(isPresented: $demoAjustes) {
             AjustesView().hojaDeCuadre(tema)
         }
+    }
+
+    @ViewBuilder
+    private var pantalla: some View {
+        Group {
+            switch pestana {
+            case .listas:
+                ListasView(enTienda: $enTienda, pestana: $pestana)
+            case .tienda:
+                EnTiendaView(listaId: $enTienda, pestana: $pestana)
+            case .ventas:
+                VentasView()
+            case .cuadre:
+                CuadreView()
+            }
+        }
+        .environment(\.sincronizador, sincronizador)
+        // Una lista estirada a mil puntos de ancho es un nombre a la izquierda,
+        // un precio a la derecha y un desierto en medio: el ojo pierde el
+        // renglón. La de ventas aguanta más porque sus columnas quieren ancho.
+        .anchoDeLectura(ancho == .regular ? (pestana == .ventas ? 1100 : 780) : .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     @ViewBuilder
@@ -160,6 +182,12 @@ extension Raiz {
         }
         if trozos.first == "invitacion" || url.host == "invitacion", let codigo = trozos.last, codigo != "invitacion" {
             invitacion = Invitacion(codigo: codigo)
+            return
+        }
+        // Los widgets y la actividad en vivo. Tocar el que dice cuánto llevas
+        // gastado tiene que abrir justo esa pantalla, no la portada.
+        if url.scheme == "cuadre", let destino = Pestana(rawValue: url.host ?? "") {
+            pestana = destino
         }
     }
 }

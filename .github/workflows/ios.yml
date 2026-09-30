@@ -195,6 +195,30 @@ jobs:
           echo "── errores en el registro, si los hubo ──"
           grep -iE "fault|crash|exception|error" registro-simulador.txt | head -20 || echo "(ninguno)"
 
+      - name: Y el iPad, que es otra app
+        # La misma app en una pantalla grande no es la misma app: las pestañas
+        # pasan a un raíl de lado y el contenido deja de estirarse. Si eso se
+        # rompe, no se ve en ninguna captura de iPhone.
+        continue-on-error: true
+        run: |
+          set -e
+          APLICACION=do.com.fente.cuadre
+          TABLETA=$(xcrun simctl list devices available | grep -E "iPad Pro|iPad Air|iPad \(" | head -1 \
+                    | grep -oE "[0-9A-Fa-f-]{36}")
+          if [ -z "$TABLETA" ]; then echo "(sin iPad disponible)"; exit 0; fi
+          xcrun simctl boot "$TABLETA" || true
+          xcrun simctl bootstatus "$TABLETA" -b || true
+          xcrun simctl install "$TABLETA" "$APP"
+          for par in "30-ipad-listas listas" "31-ipad-ventas ventas" "32-ipad-cuadre cuadre"; do
+            set -- $par
+            xcrun simctl terminate "$TABLETA" "$APLICACION" 2>/dev/null || true
+            sleep 1
+            xcrun simctl launch "$TABLETA" "$APLICACION" -demo -pestana "$2" -tema barro >/dev/null || true
+            sleep 8
+            xcrun simctl io "$TABLETA" screenshot "captura-$1.png" || true
+            echo "  · $1"
+          done
+
       - name: Subir capturas y registros
         if: always()
         uses: actions/upload-artifact@v4
