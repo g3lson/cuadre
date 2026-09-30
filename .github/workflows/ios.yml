@@ -178,6 +178,7 @@ jobs:
           captura 18-confirmar-cobro ventas confirmar
           captura 19-nueva-venta ventas evento
           captura 23-cuadre-semana cuadre semana
+          captura 24-editar-venta ventas editar
 
           # El tema de la casa es Mercado y en él sale todo lo de arriba. Los
           # otros dos, una de cada uno, para ver que el cambio es solo de

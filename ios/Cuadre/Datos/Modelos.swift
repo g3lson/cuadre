@@ -217,7 +217,7 @@ extension Sincronizable {
         self.actualizado = .now
     }
 
-    var salida: Salida { Salida(rawValue: clase) ?? .venta }
+    var salida: Salida { Salida.de(clase) }
 
     /// El precio de la tarifa elegida. Lo que se cobra de verdad es `total`.
     var precioAplicado: Double {
@@ -446,14 +446,25 @@ enum ColorLista {
 /// esto, un regalo hay que anotarlo como una venta de cero pesos —y entonces el
 /// margen sale mal— o no anotarlo —y entonces el inventario no cuadra.
 enum Salida: String, CaseIterable, Codable, Identifiable {
-    case venta, regalo, donacion, consumo, rebaja
+    // Había también «donación», y era lo mismo que un regalo con otro nombre:
+    // sale la mercancía, no entra dinero y cuenta en lo que costó. Dos botones
+    // para una sola cosa obligan a decidir algo que da igual, y luego el
+    // reporte lo suma junto de todas formas.
+    case venta, regalo, consumo, rebaja
     var id: String { rawValue }
+
+    /// Lo que guardaban las versiones viejas. Una fila anotada como donación
+    /// sigue leyéndose, como regalo, en vez de convertirse en una venta de cero
+    /// pesos que descuadraría el día.
+    static func de(_ crudo: String) -> Salida {
+        if crudo == "donacion" { return .regalo }
+        return Salida(rawValue: crudo) ?? .venta
+    }
 
     var etiqueta: String {
         switch self {
         case .venta: return "Venta"
         case .regalo: return "Regalo"
-        case .donacion: return "Donación"
         case .consumo: return "Para la casa"
         case .rebaja: return "Rebaja"
         }
@@ -467,7 +478,6 @@ enum Salida: String, CaseIterable, Codable, Identifiable {
         switch self {
         case .venta, .rebaja: return "Vendiste"
         case .regalo: return "Regalaste"
-        case .donacion: return "Donaste"
         case .consumo: return "Para la casa"
         }
     }
@@ -475,8 +485,7 @@ enum Salida: String, CaseIterable, Codable, Identifiable {
     var explicacion: String {
         switch self {
         case .venta: return "Entra el dinero completo."
-        case .regalo: return "Sale la mercancía y no entra nada. Cuenta en lo que te costó."
-        case .donacion: return "Igual que un regalo, pero se cuenta aparte para poder sumarlo."
+        case .regalo: return "Un regalo o una donación: sale la mercancía y no entra nada. Cuenta en lo que te costó."
         case .consumo: return "Se lo llevó el negocio o la casa. No es una venta."
         case .rebaja: return "Se cobra menos de la tarifa. La diferencia se ve en el cuadre."
         }

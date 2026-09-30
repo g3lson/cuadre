@@ -18,6 +18,10 @@ struct Raiz: View {
     /// La lista que se está comprando ahora. Es lo que enseña la pestaña «En
     /// tienda»: sin ella, esa pestaña no tiene de qué hablar.
     @State private var enTienda: String?
+    /// La venta que se está despachando. Mientras haya una, el menú de abajo se
+    /// quita: ese menú es para saltar entre pantallas generales, y despachando
+    /// solo quita sitio justo donde está la mano.
+    @State private var enLaVenta: String?
     /// Solo en modo demo: abrir Ajustes de una vez, para poder fotografiarla.
     @State private var demoAjustes = Demo.pestana == "ajustes"
     @State private var invitacion: Invitacion?
@@ -102,6 +106,8 @@ struct Raiz: View {
         Group {
             if ancho == .regular {
                 HStack(spacing: 0) {
+                    // En el iPad el raíl se queda: hay ancho de sobra y quitarlo
+                    // dejaría media pantalla vacía para no ganar nada.
                     RailDePestanas(activa: $pestana, conVentas: mostrarVentas) {
                         demoAjustes = true
                     }
@@ -110,11 +116,15 @@ struct Raiz: View {
             } else {
                 ZStack(alignment: .bottom) {
                     pantalla
-                    BarraDePestanas(activa: $pestana, conVentas: mostrarVentas)
+                    if !dentroDeUnaVenta {
+                        BarraDePestanas(activa: $pestana, conVentas: mostrarVentas)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
                 }
             }
         }
         .overlay(alignment: .top) { veloDeArriba }
+        .animation(.snappy(duration: 0.2), value: dentroDeUnaVenta)
         .onChange(of: mostrarVentas) { _, hay in
             if !hay, pestana == .ventas { pestana = .listas }
         }
@@ -122,6 +132,9 @@ struct Raiz: View {
             AjustesView().hojaDeCuadre(tema)
         }
     }
+
+    /// Solo en el iPhone: en el iPad el raíl no estorba.
+    private var dentroDeUnaVenta: Bool { pestana == .ventas && enLaVenta != nil }
 
     /// EL VELO DE LA BARRA DE ESTADO.
     ///
@@ -147,7 +160,7 @@ struct Raiz: View {
             case .tienda:
                 EnTiendaView(listaId: $enTienda, pestana: $pestana)
             case .ventas:
-                VentasView()
+                VentasView(abierta: $enLaVenta)
             case .cuadre:
                 CuadreView()
             }
