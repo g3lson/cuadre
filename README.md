@@ -58,10 +58,18 @@ reinstalar la app. Se corta desde cualquiera de las dos.
 
 ### La IA
 
-Dos atajos opcionales: dictar o pegar la lista en lenguaje normal, y leer la foto
-de un recibo. Van por el servidor contra un router de modelos compatible con
-OpenAI, para que la llave no viaje dentro de la app. Todo lo demás funciona sin
-IA ninguna.
+Dos atajos opcionales, y ninguno imprescindible.
+
+**La foto del recibo la lee el teléfono.** Vision saca el texto sin conexión y
+sin que la imagen salga del aparato; si el iPhone tiene Apple Intelligence, el
+modelo del sistema lo convierte en filas ahí mismo. Si no, se manda el texto
+—dos kilobytes en vez de ciento veinte— y lo ordena el servidor. La foto entera
+solo viaja si no se leyeron letras.
+
+**Dictar o pegar la lista** sí va por el servidor, contra un router de modelos
+compatible con OpenAI, para que la llave no viaje dentro de la app. Los modelos
+se nombran uno a uno y son todos gratuitos; se prueban en cadena, porque los
+planes gratis se quedan sin cuota y con uno solo la función se muere.
 
 ## Levantarlo en local
 

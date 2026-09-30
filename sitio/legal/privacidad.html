@@ -94,13 +94,28 @@
   <div class="tarjeta">
     <p>Dos funciones de la app son opcionales y usan un modelo de lenguaje: <strong>dictar o pegar
       una lista</strong> en lenguaje corriente, y <strong>leer la foto de un recibo</strong>.</p>
-    <p>Si las usas, ese texto o esa foto se manda a nuestro servidor y de ahí a un proveedor de
-      modelos (por ejemplo Anthropic o Google) para que devuelva los productos. <strong>Se manda
-      solo lo que tú pediste convertir</strong>, no tu lista entera ni tu cuenta. No guardamos ni
-      el texto ni la foto después de contestarte: se procesan y se descartan. El proveedor tiene
-      sus propios plazos de retención para prevención de abuso, normalmente de días.</p>
-    <p>Si no quieres que nada salga hacia un modelo, no uses esas dos funciones: todo lo demás de
-      la app —listas, precios, ventas, el cuadre, los reportes— funciona sin ellas y sin IA ninguna.</p>
+
+    <p><strong>La foto del recibo no sale de tu iPhone.</strong> Las letras las lee el propio
+      teléfono con el marco Vision de Apple, sin conexión. Después hay que convertir esas letras en
+      productos, y ahí pasa una de dos cosas:</p>
+    <ul>
+      <li>Si tu iPhone tiene <strong>Apple Intelligence</strong> (iOS 26 en un modelo compatible),
+        eso también ocurre dentro del teléfono y <strong>no sale nada</strong>.</li>
+      <li>Si no lo tiene, se manda a nuestro servidor <strong>solo el texto</strong> que se leyó
+        —no la imagen— y de ahí a un proveedor de modelos (hoy, Google) para ordenarlo.</li>
+    </ul>
+    <p>La foto entera solo viaja en un caso: cuando el teléfono no consigue leer ninguna letra
+      —foto movida, mala luz— y tú vuelves a intentarlo. La app te dice en cada caso cuál de los
+      tres ocurrió.</p>
+
+    <p>Con <strong>dictar o pegar una lista</strong> sí se manda lo que escribiste, porque ahí no
+      hay nada que leer en el teléfono. <strong>Se manda solo lo que pediste convertir</strong>, no
+      tu lista entera ni tu cuenta. No guardamos ni el texto ni la foto después de contestarte: se
+      procesan y se descartan. El proveedor tiene sus propios plazos de retención para prevención de
+      abuso, normalmente de días.</p>
+
+    <p>Si no quieres que nada salga hacia un modelo, no uses esas funciones: todo lo demás de la app
+      —listas, precios, ventas, el cuadre, los reportes— funciona sin ellas y sin IA ninguna.</p>
   </div>
 
   <h2>La conexión con Chinola</h2>
@@ -186,10 +201,14 @@
     your account contents. The app works fully offline and syncs when signal returns.</p>
 
   <h2>Optional AI features</h2>
-  <p>Two features are optional and use a language model: dictating or pasting a list in plain
-    language, and reading a photo of a receipt. If you use them, that text or photo is sent to our
-    server and from there to a model provider (for example Anthropic or Google) to be turned into
-    items. Only what you asked to convert is sent — not your whole account. We do not keep the text
+  <p><strong>Receipt photos do not leave your iPhone.</strong> The text is read on the device with
+    Apple's Vision framework, offline. Turning that text into items then happens either on the
+    device too — if your iPhone has Apple Intelligence — or on our server, in which case
+    <strong>only the text is sent, never the image</strong>. The full photo travels in one case
+    only: when the phone cannot read any text at all and you try again. The app tells you which of
+    the three happened.</p>
+  <p>Dictating or pasting a list does send what you wrote, since there is nothing to read on the
+    device. Only what you asked to convert is sent — not your whole account. We do not keep the text
     or the photo after answering. Everything else in the app works with no AI at all.</p>
 
   <h2>The Chinola connection</h2>
