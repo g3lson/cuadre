@@ -14,7 +14,7 @@ import {
   cierraSesion, cierraTodas, sesionesDe, borraCuenta,
 } from './auth.js';
 import { sync } from './rutas/sync.js';
-import { listas } from './rutas/listas.js';
+import { listas, grupos } from './rutas/listas.js';
 import { conectar, cuantosEscuchan } from './eventos.js';
 import { reclamaInvitaciones } from './compartir.js';
 import { listaDeTexto, listaDeRecibo, reciboDeTexto, modelosDisponibles } from './ia.js';
@@ -200,6 +200,10 @@ yo.delete('/', async (req, res) => {
 app.use('/api/yo', yo);
 app.use('/api/sync', sync);
 app.use('/api/listas', listas);
+app.use('/api/grupos', grupos);
+// Las invitaciones viejas apuntaban a /api/listas/invitacion/…: se sigue
+// aceptando ahí para no romper un enlace que ya se mandó por WhatsApp.
+app.use('/api/listas', grupos);
 
 /**
  * EN VIVO.

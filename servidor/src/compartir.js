@@ -31,35 +31,73 @@ export const normaliza = (e) => String(e || '').trim().toLowerCase();
  * Devuelve un Set porque se pregunta una vez por sincronización y después se
  * consulta una vez por fila: una consulta por artículo sería lo mismo escrito mal.
  */
+export function ambitosDe(usuarioId, ambito) {
+  return new Set(bd.prepare('SELECT ambito_id FROM miembros WHERE usuario_id = ? AND ambito = ?')
+    .all(usuarioId, ambito).map((f) => f.ambito_id));
+}
+
 export function listasCompartidasCon(usuarioId) {
-  const fuera = new Set(bd.prepare('SELECT lista_id FROM miembros WHERE usuario_id = ?')
-    .all(usuarioId).map((f) => f.lista_id));
+  const fuera = ambitosDe(usuarioId, 'lista');
+  // Y las suyas que ella misma compartió: si no, la dueña no ve el café que
+  // acaba de añadir su pareja, que es justo el caso para el que se hizo esto.
   for (const f of bd.prepare(`
-    SELECT DISTINCT l.id FROM listas l JOIN miembros m ON m.lista_id = l.id
+    SELECT DISTINCT l.id FROM listas l JOIN miembros m ON m.ambito_id = l.id AND m.ambito = 'lista'
     WHERE l.usuario_id = ?`).all(usuarioId)) fuera.add(f.id);
   return fuera;
 }
 
-/** El rol de alguien en una lista. `null` si no pinta nada ahí. */
-export function rolEn(usuarioId, listaId) {
-  const propia = bd.prepare('SELECT 1 FROM listas WHERE id = ? AND usuario_id = ?').get(listaId, usuarioId);
-  if (propia) return 'dueño';
-  return bd.prepare('SELECT rol FROM miembros WHERE lista_id = ? AND usuario_id = ?')
-    .get(listaId, usuarioId)?.rol || null;
+/** Los grupos de los que forma parte, incluidos los suyos. */
+export function gruposDe(usuarioId) {
+  const fuera = ambitosDe(usuarioId, 'grupo');
+  for (const f of bd.prepare('SELECT id FROM grupos WHERE usuario_id = ? AND borrado IS NULL').all(usuarioId)) {
+    fuera.add(f.id);
+  }
+  return fuera;
 }
 
-export const puedeEscribirEn = (usuarioId, listaId) => PUEDEN_ESCRIBIR.has(rolEn(usuarioId, listaId) || '');
+/** Dónde puede ESCRIBIR: sus grupos y aquellos donde es editor. */
+export function gruposDondeEscribe(usuarioId) {
+  const fuera = new Set(bd.prepare(
+    "SELECT ambito_id FROM miembros WHERE usuario_id = ? AND ambito = 'grupo' AND rol IN ('dueño','editor')"
+  ).all(usuarioId).map((f) => f.ambito_id));
+  for (const f of bd.prepare('SELECT id FROM grupos WHERE usuario_id = ? AND borrado IS NULL').all(usuarioId)) {
+    fuera.add(f.id);
+  }
+  return fuera;
+}
+
+/** El rol de alguien en una lista. `null` si no pinta nada ahí. */
+export function rolEn(usuarioId, id, ambito = 'lista') {
+  const tabla = ambito === 'grupo' ? 'grupos' : 'listas';
+  const propia = bd.prepare(`SELECT 1 FROM ${tabla} WHERE id = ? AND usuario_id = ?`).get(id, usuarioId);
+  if (propia) return 'dueño';
+  const suyo = bd.prepare('SELECT rol FROM miembros WHERE ambito = ? AND ambito_id = ? AND usuario_id = ?')
+    .get(ambito, id, usuarioId)?.rol;
+  if (suyo) return suyo;
+
+  // Una lista dentro de un grupo la ve quien esté en el grupo, sin invitarla
+  // aparte: eso es lo que hace que compartir un negocio se haga una vez.
+  if (ambito === 'lista') {
+    const grupo = bd.prepare('SELECT grupo_id FROM listas WHERE id = ?').get(id)?.grupo_id;
+    if (grupo) return rolEn(usuarioId, grupo, 'grupo');
+  }
+  return null;
+}
+
+export const puedeEscribirEn = (usuarioId, id, ambito = 'lista') =>
+  PUEDEN_ESCRIBIR.has(rolEn(usuarioId, id, ambito) || '');
 
 /* ─────────────────────────── los miembros ─────────────────────────── */
 
-export function miembrosDe(listaId) {
-  const lista = bd.prepare('SELECT usuario_id FROM listas WHERE id = ?').get(listaId);
+export function miembrosDe(listaId, ambito = 'lista') {
+  const tabla = ambito === 'grupo' ? 'grupos' : 'listas';
+  const lista = bd.prepare(`SELECT usuario_id FROM ${tabla} WHERE id = ?`).get(listaId);
   const dueño = lista ? bd.prepare('SELECT email, nombre FROM usuarios WHERE id = ?').get(lista.usuario_id) : null;
 
   const filas = bd.prepare(`
     SELECT m.email, m.rol, m.creado, m.visto, m.usuario_id, u.nombre
     FROM miembros m LEFT JOIN usuarios u ON u.id = m.usuario_id
-    WHERE m.lista_id = ? ORDER BY m.creado`).all(listaId);
+    WHERE m.ambito = ? AND m.ambito_id = ? ORDER BY m.creado`).all(ambito, listaId);
 
   const fuera = filas.map((f) => ({
     email: f.email,
@@ -82,8 +120,8 @@ export function miembrosDe(listaId) {
  * Lo contrario —«esa persona no existe, dile que se registre primero»— es pedirle
  * a alguien que haga dos cosas para hacer una.
  */
-export function invita(usuario, listaId, emailCrudo, rol = 'editor') {
-  if (rolEn(usuario.id, listaId) !== 'dueño') {
+export function invita(usuario, listaId, emailCrudo, rol = 'editor', ambito = 'lista') {
+  if (rolEn(usuario.id, listaId, ambito) !== 'dueño') {
     return { estado: 403, cuerpo: { error: 'Solo quien creó la lista puede invitar.' } };
   }
   const email = normaliza(emailCrudo);
@@ -96,23 +134,24 @@ export function invita(usuario, listaId, emailCrudo, rol = 'editor') {
   const suRol = ROLES.includes(rol) && rol !== 'dueño' ? rol : 'editor';
   const quien = bd.prepare('SELECT id FROM usuarios WHERE email = ?').get(email);
 
-  bd.prepare(`INSERT INTO miembros (lista_id, email, usuario_id, rol, creado) VALUES (?,?,?,?,?)
-    ON CONFLICT(lista_id, email) DO UPDATE SET rol = excluded.rol`)
-    .run(listaId, email, quien?.id || null, suRol, ahora());
+  bd.prepare(`INSERT INTO miembros (ambito, ambito_id, email, usuario_id, rol, creado) VALUES (?,?,?,?,?,?)
+    ON CONFLICT(ambito, ambito_id, email) DO UPDATE SET rol = excluded.rol`)
+    .run(ambito, listaId, email, quien?.id || null, suRol, ahora());
 
-  cuenta('lista.compartida');
-  return { estado: 200, cuerpo: { miembros: miembrosDe(listaId) } };
+  cuenta(ambito + '.compartido');
+  return { estado: 200, cuerpo: { miembros: miembrosDe(listaId, ambito) } };
 }
 
-export function quita(usuario, listaId, emailCrudo) {
+export function quita(usuario, listaId, emailCrudo, ambito = 'lista') {
   const email = normaliza(emailCrudo);
-  const soyDueño = rolEn(usuario.id, listaId) === 'dueño';
+  const soyDueño = rolEn(usuario.id, listaId, ambito) === 'dueño';
   // Uno siempre puede quitarse a sí mismo, aunque no sea el dueño.
   if (!soyDueño && email !== normaliza(usuario.email)) {
     return { estado: 403, cuerpo: { error: 'No puedes quitar a otra persona de esta lista.' } };
   }
-  bd.prepare('DELETE FROM miembros WHERE lista_id = ? AND email = ?').run(listaId, email);
-  return { estado: 200, cuerpo: { miembros: soyDueño ? miembrosDe(listaId) : [] } };
+  bd.prepare('DELETE FROM miembros WHERE ambito = ? AND ambito_id = ? AND email = ?')
+    .run(ambito, listaId, email);
+  return { estado: 200, cuerpo: { miembros: soyDueño ? miembrosDe(listaId, ambito) : [] } };
 }
 
 /* ─────────────────────────── el enlace ─────────────────────────── */
@@ -122,13 +161,13 @@ export function quita(usuario, listaId, emailCrudo) {
  * los siete días: un enlace que vale para siempre acaba reenviado en un grupo
  * de la familia y dentro de la lista de la compra hay precios y costumbres.
  */
-export function creaEnlace(usuario, listaId, rol = 'editor') {
-  if (rolEn(usuario.id, listaId) !== 'dueño') {
+export function creaEnlace(usuario, listaId, rol = 'editor', ambito = 'lista') {
+  if (rolEn(usuario.id, listaId, ambito) !== 'dueño') {
     return { estado: 403, cuerpo: { error: 'Solo quien creó la lista puede compartirla.' } };
   }
   const codigo = randomBytes(9).toString('base64url');
-  bd.prepare('INSERT INTO invitaciones (codigo, lista_id, rol, creador, expira) VALUES (?,?,?,?,?)')
-    .run(codigo, listaId, ROLES.includes(rol) && rol !== 'dueño' ? rol : 'editor', usuario.id,
+  bd.prepare('INSERT INTO invitaciones (codigo, ambito, ambito_id, rol, creador, expira) VALUES (?,?,?,?,?,?)')
+    .run(codigo, ambito, listaId, ROLES.includes(rol) && rol !== 'dueño' ? rol : 'editor', usuario.id,
          new Date(Date.now() + 7 * 864e5).toISOString());
   cuenta('lista.enlace');
   return { estado: 200, cuerpo: { codigo } };
@@ -141,19 +180,22 @@ export function aceptaEnlace(usuario, codigo) {
     bd.prepare('DELETE FROM invitaciones WHERE codigo = ?').run(inv.codigo);
     return { estado: 410, cuerpo: { error: 'Ese enlace caducó. Pide otro.' } };
   }
-  const lista = bd.prepare('SELECT id, usuario_id, datos FROM listas WHERE id = ? AND borrado IS NULL').get(inv.lista_id);
-  if (!lista) return { estado: 404, cuerpo: { error: 'Esa lista ya no está.' } };
-  if (lista.usuario_id === usuario.id) return { estado: 200, cuerpo: { ok: true, listaId: lista.id, tuya: true } };
+  const tabla = inv.ambito === 'grupo' ? 'grupos' : 'listas';
+  const lista = bd.prepare(`SELECT id, usuario_id, datos FROM ${tabla} WHERE id = ? AND borrado IS NULL`).get(inv.ambito_id);
+  if (!lista) return { estado: 404, cuerpo: { error: 'Eso ya no está.' } };
+  if (lista.usuario_id === usuario.id) {
+    return { estado: 200, cuerpo: { ok: true, listaId: lista.id, ambito: inv.ambito, tuya: true } };
+  }
 
-  bd.prepare(`INSERT INTO miembros (lista_id, email, usuario_id, rol, creado) VALUES (?,?,?,?,?)
-    ON CONFLICT(lista_id, email) DO UPDATE SET usuario_id = excluded.usuario_id`)
-    .run(lista.id, normaliza(usuario.email), usuario.id, inv.rol, ahora());
+  bd.prepare(`INSERT INTO miembros (ambito, ambito_id, email, usuario_id, rol, creado) VALUES (?,?,?,?,?,?)
+    ON CONFLICT(ambito, ambito_id, email) DO UPDATE SET usuario_id = excluded.usuario_id`)
+    .run(inv.ambito, lista.id, normaliza(usuario.email), usuario.id, inv.rol, ahora());
   bd.prepare('UPDATE invitaciones SET usos = usos + 1 WHERE codigo = ?').run(inv.codigo);
 
-  cuenta('lista.aceptada');
+  cuenta(inv.ambito + '.aceptado');
   let nombre = '';
   try { nombre = JSON.parse(lista.datos).nombre || ''; } catch { /* da igual */ }
-  return { estado: 200, cuerpo: { ok: true, listaId: lista.id, nombre } };
+  return { estado: 200, cuerpo: { ok: true, listaId: lista.id, ambito: inv.ambito, nombre } };
 }
 
 /**
@@ -170,6 +212,22 @@ export function reclamaInvitaciones(usuario) {
 
 /** Que la otra persona vea que estás mirando, y cuándo estuviste. */
 export function marcaVisto(usuarioId, listaId) {
-  bd.prepare('UPDATE miembros SET visto = ? WHERE lista_id = ? AND usuario_id = ?')
+  bd.prepare('UPDATE miembros SET visto = ? WHERE ambito_id = ? AND usuario_id = ?')
     .run(ahora(), listaId, usuarioId);
+}
+
+/** Los grupos de alguien, con cuánta gente hay en cada uno. Para la app. */
+export function misGrupos(usuarioId) {
+  return [...gruposDe(usuarioId)].map((id) => {
+    const g = bd.prepare('SELECT datos, usuario_id FROM grupos WHERE id = ? AND borrado IS NULL').get(id);
+    if (!g) return null;
+    let datos = {};
+    try { datos = JSON.parse(g.datos); } catch { /* ilegible */ }
+    return {
+      id,
+      nombre: datos.nombre || 'Grupo',
+      mio: g.usuario_id === usuarioId,
+      miembros: miembrosDe(id, 'grupo').length,
+    };
+  }).filter(Boolean);
 }

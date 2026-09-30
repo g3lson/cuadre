@@ -61,10 +61,21 @@ export const cuantosEscuchan = () =>
  */
 export function quienesVen(listaId) {
   const ids = new Set();
-  const dueño = bd.prepare('SELECT usuario_id FROM listas WHERE id = ?').get(listaId);
-  if (dueño) ids.add(dueño.usuario_id);
-  for (const m of bd.prepare('SELECT usuario_id FROM miembros WHERE lista_id = ? AND usuario_id IS NOT NULL').all(listaId)) {
-    ids.add(m.usuario_id);
+  const lista = bd.prepare('SELECT usuario_id, grupo_id FROM listas WHERE id = ?').get(listaId);
+  if (lista) ids.add(lista.usuario_id);
+
+  // Quien la tenga compartida suelta…
+  for (const m of bd.prepare(
+    "SELECT usuario_id FROM miembros WHERE ambito = 'lista' AND ambito_id = ? AND usuario_id IS NOT NULL"
+  ).all(listaId)) ids.add(m.usuario_id);
+
+  // …y quien esté en el grupo donde vive, que es la forma normal de compartir.
+  if (lista?.grupo_id) {
+    const grupo = bd.prepare('SELECT usuario_id FROM grupos WHERE id = ?').get(lista.grupo_id);
+    if (grupo) ids.add(grupo.usuario_id);
+    for (const m of bd.prepare(
+      "SELECT usuario_id FROM miembros WHERE ambito = 'grupo' AND ambito_id = ? AND usuario_id IS NOT NULL"
+    ).all(lista.grupo_id)) ids.add(m.usuario_id);
   }
   return ids;
 }

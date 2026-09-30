@@ -3,15 +3,28 @@
 // El teléfono es la fuente: escribe en su base local y sigue funcionando en el
 // pasillo del súper sin señal. Esto es el punto de encuentro entre teléfonos.
 //
-// Regla única: gana el cambio más reciente, fila por fila (`actualizado`). Es
-// una app de una persona con sus dispositivos, no un documento a cuatro manos:
-// un CRDT aquí sería resolver un problema que no existe. Borrar es escribir una
-// lápida (`borrado`), porque una fila que desaparece sin dejar rastro vuelve a
-// aparecer en el siguiente teléfono que suba lo que tenía.
+// Regla para juntar dos versiones de una fila: gana la más reciente
+// (`actualizado`). Es una app de gente con sus dispositivos, no un documento a
+// cuatro manos: un CRDT aquí sería resolver un problema que no existe. Borrar
+// escribe una lápida (`borrado`), porque una fila que desaparece sin dejar
+// rastro vuelve a aparecer en cuanto otro teléfono suba lo que tenía.
+//
+// QUIÉN VE QUÉ. Es lo delicado, y se decide en un solo sitio —`loQueVeo()`— por
+// una razón: repartir esa comprobación por las rutas es cómo un día una ruta
+// nueva se olvida de hacerla. Una fila se ve si:
+//   · es tuya, o
+//   · está en un GRUPO del que formas parte («Mi negocio», «Casa»), o
+//   · es de una lista que te compartieron suelta.
+//
+// El contenido viaja como un `datos` opaco que el servidor no mira, salvo dos
+// campos que sí necesita entender —de qué grupo y de qué lista o venta cuelga—
+// y que por eso viven en columnas aparte.
 import { Router } from 'express';
-import { bd, ahora, TABLAS, llano, cuenta } from '../bd.js';
+import { bd, ahora, TABLAS, llano, cuenta, AMBITO_DE } from '../bd.js';
 import { conSesion } from '../auth.js';
-import { listasCompartidasCon, puedeEscribirEn, marcaVisto } from '../compartir.js';
+import {
+  listasCompartidasCon, gruposDe, gruposDondeEscribe, puedeEscribirEn, marcaVisto,
+} from '../compartir.js';
 import { avisaDeListas } from '../eventos.js';
 
 export const sync = Router();
@@ -24,43 +37,74 @@ const enFila = (f) => ({
   datos: JSON.parse(f.datos),
   actualizado: f.actualizado,
   borrado: f.borrado || null,
-  ...(f.usuario_id ? { de: f.usuario_id } : {}),
+  de: f.usuario_id,
 });
 
 /**
- * Lo que cambió desde `desde`: lo propio y lo de las listas compartidas.
+ * Lo que esta persona alcanza: sus grupos, y las listas y ventas que hay dentro
+ * de ellos, más las listas que le compartieron sueltas.
  *
- * Lo compartido se busca aparte y no con un `OR` en la consulta de siempre
- * porque son dos preguntas distintas —«lo mío» y «aquello a lo que me
- * invitaron»— y mezclarlas hace que un error en una se lleve la otra por
- * delante. Además, casi nadie comparte: la consulta normal no debería pagar el
- * precio de una función que la mayoría no usa.
+ * Se calcula UNA vez por sincronización y se consulta una vez por fila. Hacerlo
+ * al revés —una consulta por fila— es lo mismo escrito mal.
  */
+function loQueVeo(usuarioId) {
+  const grupos = gruposDe(usuarioId);
+  const listas = listasCompartidasCon(usuarioId);
+  const eventos = new Set();
+
+  if (grupos.size) {
+    const ids = [...grupos];
+    const huecos = ids.map(() => '?').join(',');
+    for (const f of bd.prepare(`SELECT id FROM listas WHERE grupo_id IN (${huecos})`).all(...ids)) {
+      listas.add(f.id);
+    }
+    for (const f of bd.prepare(`SELECT id FROM eventos WHERE grupo_id IN (${huecos})`).all(...ids)) {
+      eventos.add(f.id);
+    }
+  }
+  return { grupos, listas, eventos };
+}
+
+/** Lo que cambió desde `desde`. */
 function cambiosDesde(usuarioId, desde) {
   const marca = desde || '';
+  const veo = loQueVeo(usuarioId);
   const fuera = {};
+
+  // Cuándo una fila ajena entra: la condición extra de cada tabla.
+  const ajenas = {
+    grupos: veo.grupos,
+    listas: veo.listas,
+    articulos: veo.listas,
+    eventos: veo.eventos,
+    encargos: veo.eventos,
+    catalogo: veo.grupos,
+    clientes: veo.grupos,
+    tiendas: veo.grupos,
+  };
+  // Y por qué columna se comprueba.
+  const porColumna = {
+    grupos: 'id', listas: 'id', articulos: 'lista_id',
+    eventos: 'id', encargos: 'evento_id',
+    catalogo: 'grupo_id', clientes: 'grupo_id', tiendas: 'grupo_id',
+  };
+
   for (const t of TABLAS) {
     fuera[t] = bd.prepare(
-      `SELECT id, usuario_id, datos, actualizado, borrado FROM ${t} WHERE usuario_id = ? AND actualizado > ? ORDER BY actualizado LIMIT ?`
+      `SELECT id, usuario_id, datos, actualizado, borrado FROM ${t}
+       WHERE usuario_id = ? AND actualizado > ? ORDER BY actualizado LIMIT ?`
     ).all(usuarioId, marca, MAX_FILAS).map(enFila);
-  }
 
-  const compartidas = listasCompartidasCon(usuarioId);
-  if (compartidas.size) {
-    const ids = [...compartidas];
+    const suyas = ajenas[t];
+    if (!suyas?.size) continue;
+    const ids = [...suyas];
     const huecos = ids.map(() => '?').join(',');
-    // La lista en sí, y sus artículos, sean de quien sean.
-    fuera.listas.push(...bd.prepare(
-      `SELECT id, usuario_id, datos, actualizado, borrado FROM listas
-       WHERE id IN (${huecos}) AND usuario_id != ? AND actualizado > ? ORDER BY actualizado LIMIT ?`
-    ).all(...ids, usuarioId, marca, MAX_FILAS).map(enFila));
-
-    fuera.articulos.push(...bd.prepare(
-      `SELECT id, usuario_id, datos, actualizado, borrado FROM articulos
-       WHERE lista_id IN (${huecos}) AND usuario_id != ? AND actualizado > ? ORDER BY actualizado LIMIT ?`
+    fuera[t].push(...bd.prepare(
+      `SELECT id, usuario_id, datos, actualizado, borrado FROM ${t}
+       WHERE ${porColumna[t]} IN (${huecos}) AND usuario_id != ? AND actualizado > ?
+       ORDER BY actualizado LIMIT ?`
     ).all(...ids, usuarioId, marca, MAX_FILAS).map(enFila));
   }
-
   return fuera;
 }
 
@@ -88,21 +132,64 @@ sync.post('/', (req, res) => {
   const cuerpo = req.body || {};
   const entrantes = cuerpo.cambios && typeof cuerpo.cambios === 'object' ? cuerpo.cambios : {};
   const marca = ahora();
+  const usuarioId = req.usuario.id;
   let aplicados = 0, descartados = 0;
   const tocadas = new Set();
 
-  // Una sola transacción: o entra el lote completo o no entra nada. Medio lote
-  // aplicado con la fecha de sincronización movida es cómo se pierde un cambio.
+  const veo = loQueVeo(usuarioId);
+  const gruposQueEscribo = gruposDondeEscribe(usuarioId);
+
+  /**
+   * ¿Puede escribir esta fila?
+   *
+   * `ya` es lo que hay guardado, o `undefined` si la fila es nueva. Las dos
+   * cosas se comprueban igual: no basta con mirar si la fila existente es tuya,
+   * porque entonces cualquiera que acierte el id de una lista ajena podría
+   * meterle productos nuevos dentro.
+   */
+  function puede(tabla, id, datos, ya) {
+    if (ya && ya.usuario_id === usuarioId) return true;
+    if (tabla === 'ajustes') return !ya;                 // los ajustes son de uno
+    if (tabla === 'grupos') {
+      return ya ? gruposQueEscribo.has(id) : true;       // un grupo nuevo es tuyo
+    }
+
+    const ambito = AMBITO_DE[tabla];
+    if (!ambito) return !ya;
+
+    // Cuelga de otra fila (artículo → lista, encargo → venta).
+    if (ambito.padre) {
+      const padreId = String(datos?.[ambito.campo] || '');
+      if (!padreId) return !ya;
+      const conjunto = ambito.padre === 'listas' ? veo.listas : veo.eventos;
+      const padre = bd.prepare(`SELECT usuario_id, grupo_id FROM ${ambito.padre} WHERE id = ?`).get(padreId);
+      if (!padre) return !ya;                            // todavía no llegó: se acepta y ya cuadrará
+      if (padre.usuario_id === usuarioId) return true;
+      if (padre.grupo_id) return gruposQueEscribo.has(padre.grupo_id);
+      return conjunto.has(padreId) && puedeEscribirEn(usuarioId, padreId);
+    }
+
+    // Está en un grupo.
+    const grupoId = String(datos?.grupoId || '');
+    if (grupoId) return gruposQueEscribo.has(grupoId);
+    // Sin grupo y de otra persona: solo si es una lista compartida suelta.
+    if (tabla === 'listas' && ya) return puedeEscribirEn(usuarioId, id);
+    return !ya;
+  }
+
   const guarda = bd.transaction(() => {
     for (const t of TABLAS) {
       const filas = Array.isArray(entrantes[t]) ? entrantes[t].slice(0, MAX_FILAS) : [];
       if (!filas.length) continue;
+
+      const ambito = AMBITO_DE[t];
       const lee = bd.prepare(`SELECT usuario_id, actualizado FROM ${t} WHERE id = ?`);
-      const columnaLista = t === 'articulos' ? ', lista_id' : '';
-      const valorLista = t === 'articulos' ? ', ?' : '';
-      const pon = bd.prepare(`INSERT INTO ${t} (id, usuario_id, datos, actualizado, borrado${columnaLista})
-        VALUES (?,?,?,?,?${valorLista})
-        ON CONFLICT(id) DO UPDATE SET datos = excluded.datos, actualizado = excluded.actualizado, borrado = excluded.borrado`);
+      const extra = ambito ? `, ${ambito.columna}` : '';
+      const hueco = ambito ? ', ?' : '';
+      const pon = bd.prepare(`INSERT INTO ${t} (id, usuario_id, datos, actualizado, borrado${extra})
+        VALUES (?,?,?,?,?${hueco})
+        ON CONFLICT(id) DO UPDATE SET datos = excluded.datos, actualizado = excluded.actualizado,
+          borrado = excluded.borrado${ambito ? `, ${ambito.columna} = excluded.${ambito.columna}` : ''}`);
 
       for (const f of filas) {
         const id = String(f?.id || '').slice(0, 64);
@@ -112,40 +199,20 @@ sync.post('/', (req, res) => {
         const cuando = typeof f.actualizado === 'string' && f.actualizado ? f.actualizado : marca;
         const ya = lee.get(id);
 
-        // De otra persona: solo se acepta si es de una lista donde puede escribir,
-        // y la fila SIGUE SIENDO DE QUIEN LA CREÓ. Cambiarle el dueño al marcar
-        // un producto haría que la lista se fragmentara en trozos de cada uno.
-        if (ya && ya.usuario_id !== req.usuario.id) {
-          const listaId = t === 'listas' ? id : (t === 'articulos' ? String(f.datos.listaId || '') : '');
-          if (!listaId || !puedeEscribirEn(req.usuario.id, listaId)) { descartados++; continue; }
-        }
-
-        // Un artículo NUEVO también tiene dueño: el de la lista donde dice que
-        // va. Sin esta comprobación, cualquiera que acierte el id de una lista
-        // ajena le mete productos dentro, y la fila sería suya así que ni
-        // siquiera se podría quitar desde el otro lado.
-        if (!ya && t === 'articulos') {
-          const listaId = String(f.datos.listaId || '');
-          if (listaId) {
-            const suya = bd.prepare('SELECT usuario_id FROM listas WHERE id = ?').get(listaId);
-            if (suya && suya.usuario_id !== req.usuario.id && !puedeEscribirEn(req.usuario.id, listaId)) {
-              descartados++; continue;
-            }
-          }
-        }
+        if (!puede(t, id, f.datos, ya)) { descartados++; continue; }
         if (ya && ya.actualizado >= cuando) { descartados++; continue; }
 
-        const dueño = ya ? ya.usuario_id : req.usuario.id;
-        const args = [id, dueño, JSON.stringify(f.datos), cuando, f.borrado || null];
-        if (t === 'articulos') args.push(String(f.datos.listaId || '') || null);
+        // La fila SIGUE SIENDO DE QUIEN LA CREÓ, aunque ahora la edite otro:
+        // cambiarle el dueño al marcar un producto partiría la lista en trozos.
+        const args = [id, ya ? ya.usuario_id : usuarioId, JSON.stringify(f.datos), cuando, f.borrado || null];
+        if (ambito) args.push(String(f.datos[ambito.campo] || '') || null);
         pon.run(...args);
         aplicados++;
 
-        // A quién hay que avisar: la lista que se tocó.
         if (t === 'listas') tocadas.add(id);
         else if (t === 'articulos' && f.datos.listaId) tocadas.add(String(f.datos.listaId));
       }
-      if (t === 'articulos') apuntaPrecios(req.usuario.id, filas);
+      if (t === 'articulos') apuntaPrecios(usuarioId, filas);
     }
   });
 
@@ -155,15 +222,16 @@ sync.post('/', (req, res) => {
   }
 
   cuenta('sync.subida');
-  // Y el aviso en vivo, a quien comparte esas listas. Va después de guardar: si
-  // se avisara antes, el otro teléfono sincronizaría y no encontraría nada.
+  // El aviso en vivo va DESPUÉS de guardar: al revés, el otro teléfono
+  // sincronizaría y no encontraría nada.
   if (tocadas.size) {
-    for (const listaId of tocadas) marcaVisto(req.usuario.id, listaId);
-    avisaDeListas(tocadas, req.usuario.id);
+    for (const listaId of tocadas) marcaVisto(usuarioId, listaId);
+    avisaDeListas(tocadas, usuarioId);
   }
+
   // Se contesta con lo que el teléfono no tiene todavía, para que subir y bajar
   // sea UNA llamada: en el súper, con dos barras de señal, cada viaje cuenta.
-  res.json({ ahora: ahora(), aplicados, descartados, cambios: cambiosDesde(req.usuario.id, String(cuerpo.desde || '')) });
+  res.json({ ahora: ahora(), aplicados, descartados, cambios: cambiosDesde(usuarioId, String(cuerpo.desde || '')) });
 });
 
 /** Los precios que ya viste, para que la app rellene sola al escribir un nombre. */

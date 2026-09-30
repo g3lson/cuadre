@@ -92,6 +92,16 @@ CREATE TABLE IF NOT EXISTS tiendas (
   id TEXT PRIMARY KEY, usuario_id TEXT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
   datos TEXT NOT NULL, actualizado TEXT NOT NULL, borrado TEXT);
 
+-- GRUPOS.
+--
+-- «Mi negocio», «El otro negocio», «Casa». Un grupo tiene gente dentro, y todo
+-- lo que se cree dentro de él —listas, ventas, catálogo, clientes— se comparte
+-- solo con esa gente. Es la diferencia entre compartir una lista y compartir un
+-- negocio: lo segundo se hace una vez.
+CREATE TABLE IF NOT EXISTS grupos (
+  id TEXT PRIMARY KEY, usuario_id TEXT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+  datos TEXT NOT NULL, actualizado TEXT NOT NULL, borrado TEXT);
+
 -- Los ajustes son uno por persona, así que el id ES el usuario.
 CREATE TABLE IF NOT EXISTS ajustes (
   id TEXT PRIMARY KEY, usuario_id TEXT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
@@ -106,14 +116,18 @@ CREATE TABLE IF NOT EXISTS ajustes (
 --
 -- Se invita por correo aunque esa persona todavía no tenga cuenta: cuando entre
 -- con ese correo, la invitación se convierte en membresía sola.
+-- Los miembros son de un ÁMBITO, no de una lista: una lista suelta o un grupo
+-- entero. Es la misma pregunta —«¿quién ve esto?»— y tenerla en dos tablas
+-- sería tenerla contestada de dos maneras.
 CREATE TABLE IF NOT EXISTS miembros (
-  lista_id   TEXT NOT NULL,
+  ambito     TEXT NOT NULL DEFAULT 'lista',    -- 'lista' | 'grupo'
+  ambito_id  TEXT NOT NULL,
   email      TEXT NOT NULL,
   usuario_id TEXT REFERENCES usuarios(id) ON DELETE CASCADE,
   rol        TEXT NOT NULL DEFAULT 'editor',   -- 'dueño' | 'editor' | 'mira'
   creado     TEXT NOT NULL,
   visto      TEXT,
-  PRIMARY KEY (lista_id, email));
+  PRIMARY KEY (ambito, ambito_id, email));
 CREATE INDEX IF NOT EXISTS idx_miembros_usuario ON miembros (usuario_id);
 CREATE INDEX IF NOT EXISTS idx_miembros_email ON miembros (email);
 
@@ -121,12 +135,13 @@ CREATE INDEX IF NOT EXISTS idx_miembros_email ON miembros (email);
 -- lo abra entra. Caduca, porque un enlace que vale para siempre acaba en un
 -- grupo de la familia.
 CREATE TABLE IF NOT EXISTS invitaciones (
-  codigo   TEXT PRIMARY KEY,
-  lista_id TEXT NOT NULL,
-  rol      TEXT NOT NULL DEFAULT 'editor',
-  creador  TEXT NOT NULL,
-  expira   TEXT NOT NULL,
-  usos     INTEGER NOT NULL DEFAULT 0);
+  codigo    TEXT PRIMARY KEY,
+  ambito    TEXT NOT NULL DEFAULT 'lista',
+  ambito_id TEXT NOT NULL,
+  rol       TEXT NOT NULL DEFAULT 'editor',
+  creador   TEXT NOT NULL,
+  expira    TEXT NOT NULL,
+  usos      INTEGER NOT NULL DEFAULT 0);
 
 -- Precios vistos: lo que hace que la próxima lista venga con los precios de la
 -- anterior sin que nadie los escriba dos veces.
@@ -206,8 +221,57 @@ function columna(tabla, nombre, tipo) {
   return true;
 }
 
+/** Renombrar una columna sin romper la base que ya existe. */
+function renombra(tabla, viejo, nuevo) {
+  const cols = bd.prepare(`PRAGMA table_info(${tabla})`).all().map((c) => c.name);
+  if (!cols.includes(viejo) || cols.includes(nuevo)) return false;
+  bd.exec(`ALTER TABLE ${tabla} RENAME COLUMN ${viejo} TO ${nuevo}`);
+  console.log('[bd] columna renombrada:', tabla + '.' + viejo, '→', nuevo);
+  return true;
+}
+
 columna('articulos', 'lista_id', 'TEXT');
 bd.exec('CREATE INDEX IF NOT EXISTS idx_articulos_lista ON articulos (lista_id)');
+
+// De «esto es de una lista» a «esto es de un ámbito».
+renombra('miembros', 'lista_id', 'ambito_id');
+columna('miembros', 'ambito', "TEXT NOT NULL DEFAULT 'lista'");
+renombra('invitaciones', 'lista_id', 'ambito_id');
+columna('invitaciones', 'ambito', "TEXT NOT NULL DEFAULT 'lista'");
+
+// A qué grupo pertenece cada cosa. Sale de dentro de `datos` y se guarda aparte
+// porque de ella depende quién puede verla, y buscarla dentro del JSON en cada
+// sincronización sería recorrer la tabla entera cada vez.
+for (const tabla of ['listas', 'eventos', 'catalogo', 'clientes', 'tiendas']) {
+  columna(tabla, 'grupo_id', 'TEXT');
+  bd.exec(`CREATE INDEX IF NOT EXISTS idx_${tabla}_grupo ON ${tabla} (grupo_id)`);
+}
+// Y de qué venta es cada encargo, por lo mismo.
+columna('encargos', 'evento_id', 'TEXT');
+bd.exec('CREATE INDEX IF NOT EXISTS idx_encargos_evento ON encargos (evento_id)');
+
+// Lo guardado antes de que existieran las columnas no las tiene. Se rellenan
+// una vez, al arrancar: es la diferencia entre que una venta compartida se vea
+// entera o a medias.
+for (const [tabla, { columna: col, campo }] of Object.entries({
+  listas: { columna: 'grupo_id', campo: 'grupoId' },
+  eventos: { columna: 'grupo_id', campo: 'grupoId' },
+  catalogo: { columna: 'grupo_id', campo: 'grupoId' },
+  clientes: { columna: 'grupo_id', campo: 'grupoId' },
+  tiendas: { columna: 'grupo_id', campo: 'grupoId' },
+  encargos: { columna: 'evento_id', campo: 'eventoId' },
+})) {
+  try {
+    const filas = bd.prepare(`SELECT id, datos FROM ${tabla} WHERE ${col} IS NULL`).all();
+    if (!filas.length) continue;
+    const pon = bd.prepare(`UPDATE ${tabla} SET ${col} = ? WHERE id = ?`);
+    bd.transaction(() => {
+      for (const f of filas) {
+        try { pon.run(JSON.parse(f.datos)[campo] || null, f.id); } catch { /* fila ilegible */ }
+      }
+    })();
+  } catch (e) { console.error('[bd] no pude rellenar', tabla + '.' + col, e.message); }
+}
 
 // Los artículos guardados antes de que existiera la columna no tienen
 // `lista_id`. Se rellena una vez, al arrancar: son cuatro filas hoy y es la
@@ -227,7 +291,22 @@ try {
 } catch (e) { console.error('[bd] no pude rellenar lista_id:', e.message); }
 
 /** Las tablas que el sincronizador conoce. Añadir una entidad es añadirla aquí. */
-export const TABLAS = ['listas', 'articulos', 'eventos', 'encargos', 'catalogo', 'clientes', 'tiendas', 'ajustes'];
+export const TABLAS = ['grupos', 'listas', 'articulos', 'eventos', 'encargos', 'catalogo', 'clientes', 'tiendas', 'ajustes'];
+
+/**
+ * De dónde sale el «a quién pertenece» de cada tabla, para poder guardarlo en
+ * una columna y consultarlo rápido. `grupo` es el ámbito compartido; `padre` es
+ * la fila de la que cuelga (un artículo es de una lista, un encargo de una venta).
+ */
+export const AMBITO_DE = {
+  listas: { columna: 'grupo_id', campo: 'grupoId' },
+  eventos: { columna: 'grupo_id', campo: 'grupoId' },
+  catalogo: { columna: 'grupo_id', campo: 'grupoId' },
+  clientes: { columna: 'grupo_id', campo: 'grupoId' },
+  tiendas: { columna: 'grupo_id', campo: 'grupoId' },
+  articulos: { columna: 'lista_id', campo: 'listaId', padre: 'listas' },
+  encargos: { columna: 'evento_id', campo: 'eventoId', padre: 'eventos' },
+};
 
 export const guarda = (clave, valor) => bd.prepare(
   `INSERT INTO ajustes_servidor (clave, valor, actualizado) VALUES (?,?,?)
