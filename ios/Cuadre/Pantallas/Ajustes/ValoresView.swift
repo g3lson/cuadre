@@ -1,23 +1,32 @@
 import SwiftUI
 import SwiftData
 
-/// LOS PASILLOS.
+/// LOS VALORES DE UNA CLASIFICACIÓN.
 ///
-/// El orden de esta lista es el orden en que se recorre la tienda, y por eso
-/// importa más de lo que parece: la pantalla de «En tienda» agrupa por esto, así
-/// que arrastrar «Nevera» arriba del todo cambia el recorrido de la próxima
-/// compra.
+/// Los pasillos de un súper, las marcas que vendes, las tallas. El orden
+/// importa cuando la clasificación agrupa la lista: es el orden del recorrido,
+/// así que arrastrar «Nevera» arriba del todo cambia por dónde se empieza.
 ///
-/// Son datos, no una lista fija: un colmado no tiene «Ferretería», y quien vende
-/// pescado querrá «Nevera» antes que «Víveres».
-struct PasillosView: View {
+/// Son datos, no una lista fija: un colmado no tiene «Ferretería», y quien
+/// vende pescado querrá «Nevera» antes que «Víveres».
+struct ValoresView: View {
     @Environment(\.tema) private var tema
     @Environment(\.modelContext) private var ctx
     @Environment(\.sincronizador) private var sincronizador
 
+    @Bindable var clasificacion: Clasificacion
+
     @Query(filter: #Predicate<Pasillo> { $0.borrado == nil },
            sort: [SortDescriptor<Pasillo>(\.orden), SortDescriptor<Pasillo>(\.nombre)])
-    private var pasillos: [Pasillo]
+    private var todos: [Pasillo]
+
+    /// Solo los de esta clasificación. La de fábrica se queda además con los
+    /// que no llevan dueño escrito: son los pasillos de antes de que esto
+    /// existiera.
+    private var pasillos: [Pasillo] {
+        todos.filter { $0.deQuien == clasificacion.id }
+    }
+    private var esDeFabrica: Bool { clasificacion.id == Clasificacion.pasillos }
 
     @State private var nuevo = ""
     @State private var editando: Pasillo?
@@ -26,6 +35,33 @@ struct PasillosView: View {
 
     var body: some View {
         List {
+            Section {
+                Toggle(isOn: Binding(get: { clasificacion.activa },
+                                     set: { clasificacion.activa = $0
+                                            if !$0 { clasificacion.agrupa = false }
+                                            clasificacion.toco(); guarda() })) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Usarla").font(tema.texto(16, .semibold))
+                        Text("Sale como una casilla al anotar un producto")
+                            .font(tema.texto(13)).foregroundStyle(tema.neutral700)
+                    }
+                }
+                .tint(tema.acento2_700)
+                .listRowBackground(tema.superficie)
+
+                Toggle(isOn: Binding(get: { clasificacion.agrupa },
+                                     set: { agrupaSolo($0) })) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Agrupar la compra por esto").font(tema.texto(16, .semibold))
+                        Text("La lista se parte en secciones y se recorre en este orden")
+                            .font(tema.texto(13)).foregroundStyle(tema.neutral700)
+                    }
+                }
+                .tint(tema.acento2_700)
+                .disabled(!clasificacion.activa)
+                .listRowBackground(tema.superficie)
+            }
+
             Section {
                 Text("El orden es el del recorrido: lo de arriba es lo que se coge primero. Arrastra para cambiarlo.")
                     .font(tema.texto(14))
@@ -61,12 +97,12 @@ struct PasillosView: View {
                 .onMove(perform: mueve)
                 .onDelete(perform: borra)
             } header: {
-                Rotulo("Tus pasillos · \(pasillos.count)")
+                Rotulo("\(clasificacion.nombre) · \(pasillos.count)")
             }
 
             Section {
                 HStack(spacing: 8) {
-                    TextField("Otro pasillo", text: $nuevo)
+                    TextField("Otro valor", text: $nuevo)
                         .font(tema.texto(16))
                         .focused($enElNuevo)
                         .submitLabel(.done)
@@ -83,12 +119,14 @@ struct PasillosView: View {
             }
 
             Section {
-                Button("Volver a los de siempre") { restaura() }
-                    .font(tema.texto(15, .bold))
-                    .foregroundStyle(tema.acento700)
-                    .listRowBackground(tema.superficie)
+                if esDeFabrica {
+                    Button("Volver a los de siempre") { restaura() }
+                        .font(tema.texto(15, .bold))
+                        .foregroundStyle(tema.acento700)
+                        .listRowBackground(tema.superficie)
+                }
             } footer: {
-                Text("Borrar un pasillo no borra los productos: pasan al último de la lista.")
+                Text("Borrar un valor no borra los productos: pasan al último de la lista.")
                     .font(tema.texto(13))
                     .foregroundStyle(tema.neutral700)
             }
@@ -97,22 +135,44 @@ struct PasillosView: View {
         .scrollContentBackground(.hidden)
         .fondoDelTema(tema)
         .environment(\.editMode, .constant(.active))
-        .navigationTitle("Pasillos")
+        .navigationTitle(clasificacion.nombre)
         .navigationBarTitleDisplayMode(.inline)
         .alert("Cómo se llama", isPresented: .init(get: { editando != nil }, set: { if !$0 { editando = nil } })) {
             TextField("Nombre", text: $nombreEditado)
             Button("Guardar") { renombra() }
             Button("Cancelar", role: .cancel) { editando = nil }
         }
-        .onAppear { _ = Almacen.pasillos(ctx) }
+        .onAppear { _ = Almacen.valoresDe(ctx, clasificacion.id) }
     }
 
     private func numero(_ p: Pasillo) -> Int { (pasillos.firstIndex(of: p) ?? 0) + 1 }
 
     private func cuantos(_ p: Pasillo) -> Int {
         let nombre = p.nombre
-        let d = FetchDescriptor<Articulo>(predicate: #Predicate { $0.categoria == nombre && $0.borrado == nil })
-        return (try? ctx.fetchCount(d)) ?? 0
+        if esDeFabrica {
+            let d = FetchDescriptor<Articulo>(
+                predicate: #Predicate { $0.categoria == nombre && $0.borrado == nil })
+            return (try? ctx.fetchCount(d)) ?? 0
+        }
+        // Las demás guardan su valor dentro de `etiquetas`, que no se puede
+        // consultar desde un predicado: se cuenta a mano.
+        let d = FetchDescriptor<Articulo>(predicate: #Predicate { $0.borrado == nil })
+        let id = clasificacion.id
+        return ((try? ctx.fetch(d)) ?? []).filter { $0.etiqueta(id) == nombre }.count
+    }
+
+    /// Solo una clasificación puede agrupar la compra: dos agrupaciones
+    /// cruzadas no son una lista, son una tabla.
+    private func agrupaSolo(_ puesta: Bool) {
+        if puesta {
+            for otra in Almacen.clasificaciones(ctx) where otra.agrupa && otra.id != clasificacion.id {
+                otra.agrupa = false
+                otra.toco()
+            }
+        }
+        clasificacion.agrupa = puesta
+        clasificacion.toco()
+        guarda()
     }
 
     private func guarda() {
@@ -126,7 +186,8 @@ struct PasillosView: View {
             nuevo = ""
             return
         }
-        ctx.insert(Pasillo(nombre: n, orden: (pasillos.map(\.orden).max() ?? 0) + 1))
+        ctx.insert(Pasillo(nombre: n, orden: (pasillos.map(\.orden).max() ?? 0) + 1,
+                           clasificacionId: clasificacion.id))
         nuevo = ""
         guarda()
     }
@@ -148,12 +209,7 @@ struct PasillosView: View {
             ?? Categoria.porDefecto
         for i in indices {
             let p = pasillos[i]
-            let nombre = p.nombre
-            let d = FetchDescriptor<Articulo>(predicate: #Predicate { $0.categoria == nombre && $0.borrado == nil })
-            for a in (try? ctx.fetch(d)) ?? [] {
-                a.categoria = ultimo
-                a.toco()
-            }
+            mueveLosProductos(de: p.nombre, a: ultimo)
             p.entierro()
         }
         guarda()
@@ -164,14 +220,9 @@ struct PasillosView: View {
         let n = nombreEditado.trimmingCharacters(in: .whitespaces)
         guard !n.isEmpty, n != p.nombre else { editando = nil; return }
 
-        // Los productos guardan el NOMBRE del pasillo, así que renombrarlo sin
-        // moverlos los dejaría huérfanos en un grupo que ya no existe.
-        let viejo = p.nombre
-        let d = FetchDescriptor<Articulo>(predicate: #Predicate { $0.categoria == viejo && $0.borrado == nil })
-        for a in (try? ctx.fetch(d)) ?? [] {
-            a.categoria = n
-            a.toco()
-        }
+        // Los productos guardan el NOMBRE, así que renombrarlo sin moverlos los
+        // dejaría huérfanos en un grupo que ya no existe.
+        mueveLosProductos(de: p.nombre, a: n)
         p.nombre = n
         p.toco()
         editando = nil
@@ -181,8 +232,26 @@ struct PasillosView: View {
     private func restaura() {
         for p in pasillos { p.entierro() }
         for (i, nombre) in Categoria.dePartida.enumerated() {
-            ctx.insert(Pasillo(nombre: nombre, orden: i))
+            ctx.insert(Pasillo(nombre: nombre, orden: i, clasificacionId: Clasificacion.pasillos))
         }
         guarda()
+    }
+
+    /// Los productos guardan el nombre del valor, no su identificador. Es lo
+    /// que hace que un producto siga clasificado cuando se sincroniza desde
+    /// otro teléfono que todavía no ha bajado los valores.
+    private func mueveLosProductos(de viejo: String, a nuevo: String) {
+        let d = FetchDescriptor<Articulo>(predicate: #Predicate { $0.borrado == nil })
+        let id = clasificacion.id
+        for a in (try? ctx.fetch(d)) ?? [] {
+            if esDeFabrica {
+                guard a.categoria == viejo else { continue }
+                a.categoria = nuevo
+            } else {
+                guard a.etiqueta(id) == viejo else { continue }
+                a.pon(nuevo, en: id)
+            }
+            a.toco()
+        }
     }
 }

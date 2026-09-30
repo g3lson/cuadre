@@ -63,7 +63,7 @@ struct AjustesView: View {
                 case .chinola: ChinolaAjustesView()
                 case .cuenta: CuentaView()
                 case .ia: ModelosIAView(ajustes: ajustes)
-                case .pasillos: PasillosView()
+                case .pasillos: ClasificacionesView()
                 case .grupos: GruposView()
                 }
             }
@@ -126,8 +126,9 @@ struct AjustesView: View {
             .buttonStyle(.plain)
 
             NavigationLink(value: Destino.pasillos) {
-                FilaAjuste(titulo: "Pasillos", detalle: "El orden en que recorres la tienda") {
-                    ValorYChevron(texto: "\(cuantosPasillos)")
+                FilaAjuste(titulo: "Clasificaciones",
+                           detalle: "Pasillos, marcas, tallas: cómo ordenas lo tuyo") {
+                    ValorYChevron(texto: cuantasClasificaciones)
                 }
             }
             .buttonStyle(.plain)
@@ -142,8 +143,13 @@ struct AjustesView: View {
         }
     }
 
-    private var cuantosPasillos: Int {
-        ((try? ctx.fetch(FetchDescriptor<Pasillo>())) ?? []).filter(\.vivo).count
+    /// Cuántas están encendidas. Cero es el estado de fábrica y hay que
+    /// decirlo, no dejar un «0» suelto que parece un error.
+    private var cuantasClasificaciones: String {
+        let activas = ((try? ctx.fetch(FetchDescriptor<Clasificacion>())) ?? [])
+            .filter { $0.vivo && $0.activa }
+        if activas.isEmpty { return "Ninguna" }
+        return activas.map(\.nombre).joined(separator: " · ")
     }
 
     private var cuantosProductos: Int {

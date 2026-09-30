@@ -43,6 +43,70 @@ enum Almacen {
         return (try? ctx.fetch(d)) ?? []
     }
 
+    // MARK: - Clasificaciones
+
+    /// Todas, con la de fábrica creada la primera vez.
+    ///
+    /// «Pasillo» se crea **apagada**: una casilla más en la ficha se paga en
+    /// cada producto que se anota, y quien no recorre el súper por pasillos no
+    /// la necesita. Quien la quiera, la enciende una vez.
+    @MainActor
+    static func clasificaciones(_ ctx: ModelContext) -> [Clasificacion] {
+        let d = FetchDescriptor<Clasificacion>(
+            predicate: #Predicate { $0.borrado == nil },
+            sortBy: [SortDescriptor<Clasificacion>(\.orden), SortDescriptor<Clasificacion>(\.nombre)])
+        var hay = (try? ctx.fetch(d)) ?? []
+        if !hay.contains(where: { $0.id == Clasificacion.pasillos }) {
+            let p = Clasificacion(id: Clasificacion.pasillos, nombre: "Pasillo", orden: 0)
+            ctx.insert(p)
+            try? ctx.save()
+            hay = (try? ctx.fetch(d)) ?? []
+        }
+        return hay
+    }
+
+    @MainActor
+    static func clasificacionesActivas(_ ctx: ModelContext) -> [Clasificacion] {
+        clasificaciones(ctx).filter(\.activa)
+    }
+
+    /// La que agrupa la lista de la compra, si alguna. Solo puede haber una:
+    /// dos agrupaciones cruzadas no son una lista, son una tabla.
+    @MainActor
+    static func laQueAgrupa(_ ctx: ModelContext) -> Clasificacion? {
+        clasificacionesActivas(ctx).first(where: \.agrupa)
+    }
+
+    /// Los valores de una clasificación. Los de la de fábrica son los pasillos
+    /// que ya existían, que no llevan escrito a quién pertenecen.
+    @MainActor
+    static func valoresDe(_ ctx: ModelContext, _ clasificacionId: String) -> [Pasillo] {
+        let d = FetchDescriptor<Pasillo>(
+            predicate: #Predicate { $0.borrado == nil },
+            sortBy: [SortDescriptor<Pasillo>(\.orden), SortDescriptor<Pasillo>(\.nombre)])
+        let todos = (try? ctx.fetch(d)) ?? []
+        if clasificacionId == Clasificacion.pasillos {
+            // Se siembran los de siempre la primera vez, pero solo cuando se
+            // piden: si nadie enciende «Pasillo», no se crea nada.
+            let suyos = todos.filter { $0.deQuien == Clasificacion.pasillos }
+            if suyos.isEmpty {
+                for (i, nombre) in Categoria.dePartida.enumerated() {
+                    ctx.insert(Pasillo(nombre: nombre, orden: i,
+                                       clasificacionId: Clasificacion.pasillos))
+                }
+                try? ctx.save()
+                return ((try? ctx.fetch(d)) ?? []).filter { $0.deQuien == Clasificacion.pasillos }
+            }
+            return suyos
+        }
+        return todos.filter { $0.clasificacionId == clasificacionId }
+    }
+
+    /// Lo que vale un artículo en una clasificación, sea la de fábrica o no.
+    static func valor(_ a: Articulo, en clasificacionId: String) -> String {
+        clasificacionId == Clasificacion.pasillos ? a.categoria : a.etiqueta(clasificacionId)
+    }
+
     /// Dónde va una categoría en el recorrido. Lo que no está, al final.
     @MainActor
     static func ordenDePasillo(_ ctx: ModelContext, _ nombre: String) -> Int {
@@ -323,6 +387,59 @@ enum Almacen {
     /// El último precio que se pagó por algo con ese nombre. Es lo que hace que
     /// escribir «Leche entera» en una lista nueva ya traiga RD$245 puesto.
     @MainActor
+    /// UNA COMPRA DE ESTE PRODUCTO.
+    struct Compra: Identifiable {
+        let id: String
+        let fecha: Date
+        let precio: Double
+        let unidad: String
+        let cantidad: Double
+        let tienda: String
+        let lista: String
+    }
+
+    /// TODO LO QUE HAS PAGADO POR ALGO, DE LO MÁS NUEVO A LO MÁS VIEJO.
+    ///
+    /// Es lo que convierte a Cuadre en algo que sabe si hoy te están cobrando
+    /// de más: ninguna cadena publica sus ofertas de manera que se puedan leer,
+    /// pero tú ya llevas tu propio precio apuntado desde hace meses, y ese es
+    /// el único que importa para tu margen.
+    ///
+    /// Se compara sin tildes y sin mayúsculas: «Azúcar crema» y «azucar crema»
+    /// son lo mismo cuando lo escribieron dos personas distintas.
+    @MainActor
+    static func historial(_ ctx: ModelContext, de nombre: String, cuantas: Int = 40) -> [Compra] {
+        let llano = nombre.folding(options: .diacriticInsensitive, locale: nil).lowercased()
+        guard !llano.isEmpty else { return [] }
+        let d = FetchDescriptor<Articulo>(
+            predicate: #Predicate { $0.hecho && $0.precio > 0 && $0.borrado == nil },
+            sortBy: [SortDescriptor(\.actualizado, order: .reverse)])
+        guard let todos = try? ctx.fetch(d) else { return [] }
+
+        let listas = ((try? ctx.fetch(FetchDescriptor<Lista>())) ?? [])
+        var v: [Compra] = []
+        for a in todos where a.nombre.folding(options: .diacriticInsensitive, locale: nil).lowercased() == llano {
+            let l = listas.first { $0.id == a.listaId }
+            v.append(Compra(id: a.id,
+                            fecha: l?.cerradaEn ?? l?.fecha ?? a.actualizado,
+                            precio: a.precio, unidad: a.unidad, cantidad: a.cantidad,
+                            tienda: l?.tienda ?? "", lista: l?.nombre ?? ""))
+            if v.count >= cuantas { break }
+        }
+        return v
+    }
+
+    /// Cómo está el precio de hoy comparado con la última vez. `nil` cuando no
+    /// hay con qué comparar o cuando es la misma compra.
+    @MainActor
+    static func comparaPrecio(_ ctx: ModelContext, de articulo: Articulo) -> (antes: Compra, cambio: Double)? {
+        guard articulo.precio > 0 else { return nil }
+        let previas = historial(ctx, de: articulo.nombre, cuantas: 10)
+            .filter { $0.id != articulo.id && $0.unidad == articulo.unidad }
+        guard let ultima = previas.first, ultima.precio > 0 else { return nil }
+        return (ultima, (articulo.precio - ultima.precio) / ultima.precio)
+    }
+
     static func ultimoPrecio(_ ctx: ModelContext, de nombre: String) -> (precio: Double, unidad: String)? {
         let llano = nombre.folding(options: .diacriticInsensitive, locale: nil).lowercased()
         guard !llano.isEmpty else { return nil }
