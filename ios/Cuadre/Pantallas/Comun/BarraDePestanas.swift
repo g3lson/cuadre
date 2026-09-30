@@ -149,11 +149,15 @@ struct RailDePestanas: View {
         }
         .frame(width: 86)
         .frame(maxHeight: .infinity)
-        .background(tema.neutral900)
-        .overlay(alignment: .trailing) {
-            Rectangle().fill(.black.opacity(0.25)).frame(width: 1)
+        // El color se sale por arriba y por abajo; el contenido NO. Poniendo
+        // `ignoresSafeArea` al conjunto, la marca se montaba sobre el reloj.
+        .background {
+            tema.neutral900
+                .overlay(alignment: .trailing) {
+                    Rectangle().fill(.black.opacity(0.25)).frame(width: 1)
+                }
+                .ignoresSafeArea(edges: .vertical)
         }
-        .ignoresSafeArea(edges: .vertical)
     }
 }
 
