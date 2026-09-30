@@ -121,7 +121,32 @@ workflows:
 
           app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create
           keychain add-certificates
-          xcode-project use-profiles --project "$XCODE_PROJECT"
+          xcode-project use-profiles --project "$XCODE_PROJECT" || true
+
+          # EL NOMBRE DEL PERFIL, A MANO.
+          #
+          # `use-profiles` mete el perfil dentro del project.pbxproj con su propio
+          # analizador. Este proyecto está en el formato nuevo de Xcode 16+
+          # (carpetas sincronizadas, objectVersion 77), que ese analizador puede
+          # no entender: entonces no inyecta nada, no avisa, y el archivado se cae
+          # después con «requires a provisioning profile». Leerlo del propio
+          # archivo descargado y pasárselo a xcodebuild quita esa dependencia.
+          PERFIL=""
+          for p in "$HOME/Library/MobileDevice/Provisioning Profiles"/*.mobileprovision \
+                   "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"/*.mobileprovision; do
+            [ -f "$p" ] || continue
+            APP_ID=$(security cms -D -i "$p" 2>/dev/null \
+              | plutil -extract Entitlements.application-identifier raw -o - - 2>/dev/null || true)
+            case "$APP_ID" in
+              *".$BUNDLE_ID") PERFIL=$(security cms -D -i "$p" 2>/dev/null | plutil -extract Name raw -o - - || true) ;;
+            esac
+          done
+          if [ -z "$PERFIL" ]; then
+            echo "No encontré un perfil para $BUNDLE_ID entre los descargados."
+            exit 1
+          fi
+          echo "PERFIL=$PERFIL" >> $CM_ENV
+          echo "Perfil: $PERFIL"
 
           PERFILES=$(ls "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"/*.mobileprovision \
                         "$HOME/Library/MobileDevice/Provisioning Profiles"/*.mobileprovision 2>/dev/null | wc -l)
@@ -164,7 +189,10 @@ workflows:
         # del registro que deja en /tmp.
         script: |
           set +e
-          xcode-project build-ipa --project "$XCODE_PROJECT" --scheme "$XCODE_SCHEME"
+          xcode-project build-ipa \
+            --project "$XCODE_PROJECT" \
+            --scheme "$XCODE_SCHEME" \
+            --archive-flags="PROVISIONING_PROFILE_SPECIFIER=$PERFIL DEVELOPMENT_TEAM=$APPLE_TEAM_ID"
           ESTADO=$?
           if [ $ESTADO -ne 0 ]; then
             echo

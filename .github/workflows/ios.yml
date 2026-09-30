@@ -46,6 +46,11 @@ jobs:
           sudo xcode-select -s "$NUEVO"
           xcodebuild -version
 
+      - name: Comprobar que el plist y los permisos están bien formados
+        run: |
+          plutil -lint ios/Cuadre/Info.plist
+          plutil -lint ios/Cuadre/Cuadre.entitlements
+
       - name: Archivar en Release, sin firmar
         run: |
           set -o pipefail
@@ -56,7 +61,6 @@ jobs:
             -destination 'generic/platform=iOS' \
             -archivePath build/Cuadre.xcarchive \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
-            CODE_SIGN_ENTITLEMENTS="" \
             archive 2>&1 | tee archivado.txt | grep -E "error:|warning:|ARCHIVE|BUILD" || true
           if ! grep -q "ARCHIVE SUCCEEDED" archivado.txt; then
             echo "::error::El archivado falló"
