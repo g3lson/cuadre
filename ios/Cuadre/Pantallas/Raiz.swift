@@ -38,7 +38,18 @@ struct Raiz: View {
     }
     private var tema: Tema { Tema.de(ajustes?.claveTema ?? .barro) }
 
+    // EL CUERPO, EN TRES TRAMOS.
+    //
+    // Quince modificadores encadenados en una sola expresión y el compilador se
+    // rinde: «unable to type-check this expression in reasonable time». No es
+    // que sea complicado, es que cada `.onChange` con su cierre multiplica las
+    // combinaciones de tipos que tiene que probar. Partirlo en tramos con un
+    // tipo ya resuelto en medio lo deja en segundos.
     var body: some View {
+        conLosEnlaces
+    }
+
+    private var pintado: some View {
         ZStack {
             if sesion.comprobando {
                 Portada()
@@ -55,6 +66,10 @@ struct Raiz: View {
         .overlay(alignment: .top) { avisos }
         .animation(.snappy(duration: 0.25), value: sesion.dentro)
         .animation(.snappy(duration: 0.25), value: tema.id)
+    }
+
+    private var conLoQueEscucha: some View {
+        pintado
         .onChange(of: sesion.usuario?.id) { _, nuevo in
             guard let nuevo else { return }
             // Los ajustes se crean al entrar, no al arrancar la app: antes de
@@ -84,6 +99,10 @@ struct Raiz: View {
             // Una lista creada en el otro teléfono también tiene que avisar aquí.
             Task { await repasaAvisos() }
         }
+    }
+
+    private var conLosEnlaces: some View {
+        conLoQueEscucha
         .onOpenURL { url in
             manda(url)
         }
@@ -93,8 +112,9 @@ struct Raiz: View {
         }
         .sheet(item: $invitacion) { inv in
             InvitacionView(codigo: inv.codigo) { listaId in
+                // Aceptar una invitación lleva derecho a comprar esa lista.
+                pestana = .listas
                 enTienda = listaId
-                pestana = .tienda
                 Task { await sincronizador?.sincroniza() }
             }
             .hojaDeCuadre(tema)
