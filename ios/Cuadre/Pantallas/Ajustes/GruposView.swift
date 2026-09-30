@@ -26,7 +26,7 @@ struct GruposView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Un grupo es un negocio, o tu casa. Lo que creas dentro lo ve la gente del grupo sin que tengas que compartirlo cosa por cosa.")
+                Text("Un negocio es «la pescadería», «el colmado» o tu casa. Lo que creas dentro lo ve su gente sin que tengas que compartirlo cosa por cosa, y lo que despachas sale con su nombre y su logo.")
                     .font(tema.texto(15))
                     .foregroundStyle(tema.neutral700)
                     .fixedSize(horizontal: false, vertical: true)
@@ -66,7 +66,7 @@ struct GruposView: View {
                 } label: {
                     HStack(spacing: 8) {
                         IconoView(icono: .mas, tamano: 18)
-                        Text("Crear un grupo")
+                        Text("Crear un negocio")
                     }
                 }
                 .buttonStyle(BotonSuave())
@@ -78,14 +78,14 @@ struct GruposView: View {
         }
         .scrollIndicators(.hidden)
         .fondoDelTema(tema)
-        .navigationTitle("Grupos")
+        .navigationTitle("Negocios")
         .navigationBarTitleDisplayMode(.inline)
         .alert("¿Cómo se llama?", isPresented: $creando) {
-            TextField("Mi negocio", text: $nombreNuevo)
+            TextField("Pescadería El Muelle", text: $nombreNuevo)
             Button("Crear") { crea() }
             Button("Cancelar", role: .cancel) {}
         } message: {
-            Text("Por ejemplo «Pescadería», «La casa» o el nombre de tu socio.")
+            Text("Después le pones el logo, la portada y con quién lo llevas.")
         }
         .navigationDestination(item: $abierto) { NegocioView(grupo: $0) }
         .task { await cuenta() }

@@ -19,6 +19,9 @@ struct AjustesView: View {
             where Demo.abre(String(describing: d)) {
             return [d]
         }
+        // La pantalla de un negocio cuelga de la lista de negocios: para
+        // fotografiarla hay que pasar por ahí.
+        if Demo.abre("negocio") { return [.grupos] }
         return []
     }()
 
@@ -145,7 +148,7 @@ struct AjustesView: View {
         Rotulo("Conexiones").padding(.top, 6)
         Bloque {
             NavigationLink(value: Destino.grupos) {
-                FilaAjuste(titulo: "Grupos", detalle: "Comparte un negocio entero de una vez") {
+                FilaAjuste(titulo: "Negocios", detalle: "Su nombre, su logo y con quién lo llevas") {
                     IconoView(icono: .chevron, tamano: 16, grosor: 3).foregroundStyle(tema.neutral500)
                 }
             }

@@ -47,9 +47,18 @@ struct VentasView: View {
     /// esa. Sin esto solo se veía una venta y las demás no existían.
     @State private var elegido: String?
     private var abiertos: [Evento] { eventos.filter { $0.estado == "abierto" } }
+    /// Cuál se enseña sin elegir nada.
+    ///
+    /// La de HOY, no la más lejana. Con un día de venta ya abierto para el
+    /// sábado que viene, ordenar por fecha hacia atrás abría el del sábado
+    /// —vacío— mientras se está despachando el de hoy. Así que primero la
+    /// última que ya empezó, y solo si no hay ninguna, la siguiente que viene.
     private var evento: Evento? {
         if let id = elegido, let e = eventos.first(where: { $0.id == id }) { return e }
-        return abiertos.first ?? eventos.first
+        let hoy = Calendar.current.startOfDay(for: .now)
+        let empezadas = abiertos.filter { $0.fecha < hoy.addingTimeInterval(86400) }
+        if let e = empezadas.first { return e }
+        return abiertos.last ?? eventos.first
     }
     private var todosLosDeLaVenta: [Encargo] { todos.filter { $0.eventoId == evento?.id } }
     /// Quiénes han anotado algo en esta venta.
