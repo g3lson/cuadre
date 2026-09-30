@@ -14,7 +14,10 @@ import {
   cierraSesion, cierraTodas, sesionesDe, borraCuenta,
 } from './auth.js';
 import { sync } from './rutas/sync.js';
-import { listaDeTexto, listaDeRecibo, reciboDeTexto } from './ia.js';
+import { listas } from './rutas/listas.js';
+import { conectar, cuantosEscuchan } from './eventos.js';
+import { reclamaInvitaciones } from './compartir.js';
+import { listaDeTexto, listaDeRecibo, reciboDeTexto, modelosDisponibles } from './ia.js';
 import * as chin from './chinola.js';
 import { guardaReporte, leeReporte, pdf, paginaReporte } from './reportes.js';
 import { arrancaRespaldos, estado as estadoRespaldos, respalda } from './respaldos.js';
@@ -55,7 +58,7 @@ function limite(porMinuto) {
 /* ────────────────────────────── salud ────────────────────────────── */
 
 app.get('/api/salud', (req, res) => {
-  res.json({ ok: true, version: config.version, ahora: ahora(), ia: hayIA(), correo: hayCorreo() });
+  res.json({ ok: true, version: config.version, ahora: ahora(), ia: hayIA(), correo: hayCorreo(), enVivo: cuantosEscuchan() });
 });
 
 /**
@@ -150,11 +153,15 @@ app.post('/api/auth/codigo', limite(6), async (req, res) => {
 });
 
 app.post('/api/auth/entrar', limite(12), (req, res) => {
-  responde(res, entraConCodigo(req.body?.correo ?? req.body?.email, req.body?.codigo, req.body?.dispositivo));
+  const r = entraConCodigo(req.body?.correo ?? req.body?.email, req.body?.codigo, req.body?.dispositivo);
+  if (r.estado === 200) reclamaInvitaciones(bd.prepare('SELECT * FROM usuarios WHERE id = ?').get(r.cuerpo.usuario.id));
+  responde(res, r);
 });
 
 app.post('/api/auth/apple', limite(12), async (req, res) => {
-  responde(res, await entraConApple(req.body?.identityToken, req.body?.nombre, req.body?.dispositivo));
+  const r = await entraConApple(req.body?.identityToken, req.body?.nombre, req.body?.dispositivo);
+  if (r.estado === 200) reclamaInvitaciones(bd.prepare('SELECT * FROM usuarios WHERE id = ?').get(r.cuerpo.usuario.id));
+  responde(res, r);
 });
 
 /* ────────────────────────────── la cuenta ────────────────────────────── */
@@ -192,15 +199,41 @@ yo.delete('/', async (req, res) => {
 
 app.use('/api/yo', yo);
 app.use('/api/sync', sync);
+app.use('/api/listas', listas);
+
+/**
+ * EN VIVO.
+ *
+ * Una conexión que no se cierra por la que el servidor avisa de que una lista
+ * compartida cambió. No manda los datos: manda «mira otra vez», y el teléfono
+ * sincroniza por donde ya sabe.
+ *
+ * No lleva `limite()`: es UNA conexión por aparato y dura horas; contarla como
+ * si fueran muchas peticiones la cortaría justo cuando hace falta.
+ */
+app.get('/api/eventos', conSesion, (req, res) => {
+  req.socket.setTimeout(0);
+  req.socket.setNoDelay(true);
+  req.socket.setKeepAlive(true);
+  conectar(req, res, req.usuario.id);
+});
 
 /* ────────────────────────────── la IA ────────────────────────────── */
 
 const ia = express.Router();
 ia.use(conSesion);
 
+/** Los modelos que el router tiene ahora mismo, para poder elegir uno. */
+ia.get('/modelos', limite(10), async (req, res) => {
+  try { res.json(await modelosDisponibles()); }
+  catch (e) { res.status(e.estado || 502).json({ error: e.message }); }
+});
+
 ia.post('/lista', limite(20), async (req, res) => {
   try {
-    const r = await listaDeTexto(req.body?.texto, { tienda: req.body?.tienda, conocidos: req.body?.conocidos });
+    const r = await listaDeTexto(req.body?.texto, {
+      tienda: req.body?.tienda, conocidos: req.body?.conocidos, modelo: req.body?.modelo,
+    });
     cuenta('ia.lista');
     res.json(r);
   } catch (e) { res.status(e.estado || 502).json({ error: e.message }); }
@@ -208,7 +241,7 @@ ia.post('/lista', limite(20), async (req, res) => {
 
 ia.post('/recibo-texto', limite(20), async (req, res) => {
   try {
-    const r = await reciboDeTexto(req.body?.texto);
+    const r = await reciboDeTexto(req.body?.texto, { modelo: req.body?.modelo });
     cuenta('ia.recibo.texto');
     res.json(r);
   } catch (e) { res.status(e.estado || 502).json({ error: e.message }); }
@@ -216,7 +249,7 @@ ia.post('/recibo-texto', limite(20), async (req, res) => {
 
 ia.post('/recibo', limite(10), async (req, res) => {
   try {
-    const r = await listaDeRecibo(req.body?.imagen, req.body?.tipo);
+    const r = await listaDeRecibo(req.body?.imagen, req.body?.tipo, { modelo: req.body?.modelo });
     cuenta('ia.recibo');
     res.json(r);
   } catch (e) { res.status(e.estado || 502).json({ error: e.message }); }

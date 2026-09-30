@@ -46,10 +46,15 @@ Reglas del país y del oficio:
  *     pide el mensaje, y `extrae()` está para lo que no salga limpio.
  *   · Un 429 no es un error que enseñar: es el siguiente de la lista.
  */
-async function pregunta(mensajes, { maxTokens = 1800, conImagen = false } = {}) {
+async function pregunta(mensajes, { maxTokens = 1800, conImagen = false, modelo = '' } = {}) {
   if (!hayIA()) throw Object.assign(new Error('La IA no está configurada en este servidor.'), { estado: 503 });
 
-  const cadena = conImagen ? config.ia.modelosVision : config.ia.modelos;
+  // Si la persona eligió uno en Ajustes, va delante; el resto queda de respaldo,
+  // porque su modelo se puede quedar sin cuota igual que cualquier otro y nadie
+  // quiere que la app deje de leer recibos por eso.
+  const base = conImagen ? config.ia.modelosVision : config.ia.modelos;
+  const suyo = String(modelo || '').trim().slice(0, 80);
+  const cadena = suyo ? [suyo, ...base.filter((m) => m !== suyo)] : base;
   const cuerpoBase = {
     max_tokens: maxTokens,
     temperature: 0,
@@ -58,22 +63,26 @@ async function pregunta(mensajes, { maxTokens = 1800, conImagen = false } = {}) 
   };
 
   let ultimo;
-  for (const modelo of cadena) {
+  const intentados = [];
+  for (const modeloPedido of cadena) {
+    intentados.push(modeloPedido);
     try {
       const r = await fetch(config.ia.base + '/chat/completions', {
         method: 'POST',
         headers: { authorization: 'Bearer ' + config.ia.clave, 'content-type': 'application/json' },
-        body: JSON.stringify({ model: modelo, ...cuerpoBase }),
+        body: JSON.stringify({ model: modeloPedido, ...cuerpoBase }),
         signal: AbortSignal.timeout(90_000),
       });
       if (!r.ok) throw new Error(r.status + ' ' + (await r.text()).slice(0, 200));
       const j = await r.json();
       const texto = j?.choices?.[0]?.message?.content || '';
       if (!texto.trim()) throw new Error('contestó vacío');
-      return texto;
+      // Se devuelve QUIÉN contestó, no solo qué: la app lo enseña, y si un día
+      // algo sale raro lo primero que hay que saber es de qué modelo salió.
+      return { texto, modelo: j?.model || modeloPedido, intentos: intentados };
     } catch (e) {
       ultimo = e;
-      console.error('[ia]', modelo, '→', e.message);
+      console.error('[ia]', modeloPedido, '→', e.message);
     }
   }
   throw Object.assign(
@@ -109,7 +118,7 @@ function limpia(productos) {
 }
 
 /** De lo que alguien dictó o pegó, a filas de lista. */
-export async function listaDeTexto(texto, { tienda = '', conocidos = [] } = {}) {
+export async function listaDeTexto(texto, { tienda = '', conocidos = [], modelo = '' } = {}) {
   const t = String(texto || '').trim().slice(0, 4000);
   if (!t) return { productos: [] };
 
@@ -118,11 +127,11 @@ export async function listaDeTexto(texto, { tienda = '', conocidos = [] } = {}) 
       conocidos.slice(0, 60).map((c) => `- ${c.nombre} · ${c.unidad} · ${c.precio}`).join('\n')}`
     : '';
 
-  const bruto = await pregunta([
+  const r = await pregunta([
     { role: 'system', content: REGLAS + `\n\nFormato: {"productos":[{"nombre","unidad","cantidad","precio","nota","categoria"}]}` },
     { role: 'user', content: `Tienda: ${tienda || 'sin especificar'}.${pista}\n\nConvierte esto en productos:\n\n${t}` },
-  ]);
-  return { productos: limpia(extrae(bruto).productos) };
+  ], { modelo });
+  return { productos: limpia(extrae(r.texto).productos), modelo: r.modelo };
 }
 
 /**
@@ -134,21 +143,22 @@ export async function listaDeTexto(texto, { tienda = '', conocidos = [] } = {}) 
  * hacer: entender que «PLATANO BARAHONERO UD 12.0 300.00» son doce plátanos a
  * veinticinco pesos.
  */
-export async function reciboDeTexto(texto) {
+export async function reciboDeTexto(texto, { modelo = '' } = {}) {
   const t = String(texto || '').trim().slice(0, 12000);
   if (!t) throw Object.assign(new Error('No llegó el texto del recibo.'), { estado: 400 });
 
-  const bruto = await pregunta([
+  const r = await pregunta([
     { role: 'system', content: REGLAS + `\n\nFormato: {"tienda":"","fecha":"AAAA-MM-DD","total":0,"productos":[{"nombre","unidad","cantidad","precio","nota","categoria"}]}` },
     { role: 'user', content: `Esto es lo que dice un recibo de compra dominicano, leído línea por línea. Devuelve cada producto con su precio POR UNIDAD (si el recibo trae el importe de la línea, divídelo entre la cantidad). Los impuestos, las propinas, los descuentos, el subtotal y el total NO son productos.\n\n${t}` },
-  ], { maxTokens: 2600 });
+  ], { maxTokens: 2600, modelo });
 
-  const j = extrae(bruto);
+  const j = extrae(r.texto);
   return {
     tienda: String(j?.tienda || '').trim().slice(0, 60),
     fecha: /^\d{4}-\d{2}-\d{2}$/.test(j?.fecha || '') ? j.fecha : '',
     total: r2(num(j?.total)),
     productos: limpia(j?.productos),
+    modelo: r.modelo,
   };
 }
 
@@ -157,11 +167,11 @@ export async function reciboDeTexto(texto) {
  * que más tiempo ahorra: diez productos escritos a mano son diez oportunidades
  * de teclear un número mal.
  */
-export async function listaDeRecibo(imagenBase64, tipo = 'image/jpeg') {
+export async function listaDeRecibo(imagenBase64, tipo = 'image/jpeg', { modelo = '' } = {}) {
   const datos = String(imagenBase64 || '').replace(/^data:[^,]+,/, '');
   if (!datos) throw Object.assign(new Error('No llegó la imagen.'), { estado: 400 });
 
-  const bruto = await pregunta([
+  const r = await pregunta([
     { role: 'system', content: REGLAS + `\n\nFormato: {"tienda":"","fecha":"AAAA-MM-DD","total":0,"productos":[{"nombre","unidad","cantidad","precio","nota","categoria"}]}` },
     {
       role: 'user',
@@ -170,13 +180,48 @@ export async function listaDeRecibo(imagenBase64, tipo = 'image/jpeg') {
         { type: 'image_url', image_url: { url: `data:${tipo};base64,${datos}` } },
       ],
     },
-  ], { maxTokens: 2600, conImagen: true });
+  ], { maxTokens: 2600, conImagen: true, modelo });
 
-  const j = extrae(bruto);
+  const j = extrae(r.texto);
   return {
     tienda: String(j?.tienda || '').trim().slice(0, 60),
     fecha: /^\d{4}-\d{2}-\d{2}$/.test(j?.fecha || '') ? j.fecha : '',
     total: r2(num(j?.total)),
     productos: limpia(j?.productos),
+    modelo: r.modelo,
+  };
+}
+
+/**
+ * Los modelos que el router tiene ahora mismo.
+ *
+ * Se marcan los que Cuadre trae puestos —comprobados: gratuitos y, los de la
+ * cadena de fotos, capaces de ver— para que elegir otro sea una decisión y no
+ * un descuido.
+ */
+export async function modelosDisponibles() {
+  if (!hayIA()) throw Object.assign(new Error('La IA no está configurada en este servidor.'), { estado: 503 });
+
+  const r = await fetch(config.ia.base + '/models', {
+    headers: { authorization: 'Bearer ' + config.ia.clave },
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!r.ok) throw Object.assign(new Error('El router no contestó.'), { estado: 502 });
+  const j = await r.json();
+
+  const enCadena = new Set([...config.ia.modelos, ...config.ia.modelosVision]);
+  return {
+    puestos: { texto: config.ia.modelos, foto: config.ia.modelosVision },
+    modelos: (j.data || [])
+      .filter((m) => m.available !== false)
+      .map((m) => ({
+        id: m.id,
+        nombre: m.name || m.id,
+        proveedor: m.owned_by || '',
+        contexto: m.context_window || 0,
+        puesto: enCadena.has(m.id),
+      }))
+      // Los que trae Cuadre primero; el resto por nombre.
+      .sort((a, b) => (b.puesto - a.puesto) || a.id.localeCompare(b.id)),
   };
 }

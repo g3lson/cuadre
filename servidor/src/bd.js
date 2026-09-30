@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS codigos (
 );
 
 -- ─────────────────────────── lo que se sincroniza ───────────────────────────
--- \`datos\` es un JSON con los campos propios de cada entidad. Se guarda entero
+-- \«datos\» es un JSON con los campos propios de cada entidad. Se guarda entero
 -- porque el servidor no necesita entenderlos para sincronizarlos, y así un
 -- campo nuevo en la app no obliga a migrar la base ni a desplegar el servidor.
 -- Lo que sí es columna es lo que el servidor usa: a quién pertenece, cuándo
@@ -65,9 +65,14 @@ CREATE TABLE IF NOT EXISTS codigos (
 CREATE TABLE IF NOT EXISTS listas (
   id TEXT PRIMARY KEY, usuario_id TEXT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
   datos TEXT NOT NULL, actualizado TEXT NOT NULL, borrado TEXT);
+-- «lista_id» sale de dentro de «datos» y se guarda aparte a propósito: es lo
+-- único que el servidor SÍ necesita entender de un artículo, porque de él
+-- depende quién puede verlo cuando la lista está compartida. Buscarlo dentro
+-- del JSON en cada consulta sería un escaneo entero por cada sincronización.
 CREATE TABLE IF NOT EXISTS articulos (
   id TEXT PRIMARY KEY, usuario_id TEXT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
-  datos TEXT NOT NULL, actualizado TEXT NOT NULL, borrado TEXT);
+  lista_id TEXT, datos TEXT NOT NULL, actualizado TEXT NOT NULL, borrado TEXT);
+CREATE INDEX IF NOT EXISTS idx_articulos_lista ON articulos (lista_id);
 CREATE TABLE IF NOT EXISTS eventos (
   id TEXT PRIMARY KEY, usuario_id TEXT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
   datos TEXT NOT NULL, actualizado TEXT NOT NULL, borrado TEXT);
@@ -88,6 +93,37 @@ CREATE TABLE IF NOT EXISTS tiendas (
 CREATE TABLE IF NOT EXISTS ajustes (
   id TEXT PRIMARY KEY, usuario_id TEXT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
   datos TEXT NOT NULL, actualizado TEXT NOT NULL, borrado TEXT);
+
+-- COMPARTIR UNA LISTA.
+--
+-- Una pareja que se separa en el súper tiene que ver lo mismo: si él ya cogió
+-- la leche, ella no debería buscarla. Por eso una lista puede tener miembros
+-- además de dueño, y por eso el dueño de la FILA («usuario_id») y quién puede
+-- verla dejan de ser lo mismo.
+--
+-- Se invita por correo aunque esa persona todavía no tenga cuenta: cuando entre
+-- con ese correo, la invitación se convierte en membresía sola.
+CREATE TABLE IF NOT EXISTS miembros (
+  lista_id   TEXT NOT NULL,
+  email      TEXT NOT NULL,
+  usuario_id TEXT REFERENCES usuarios(id) ON DELETE CASCADE,
+  rol        TEXT NOT NULL DEFAULT 'editor',   -- 'dueño' | 'editor' | 'mira'
+  creado     TEXT NOT NULL,
+  visto      TEXT,
+  PRIMARY KEY (lista_id, email));
+CREATE INDEX IF NOT EXISTS idx_miembros_usuario ON miembros (usuario_id);
+CREATE INDEX IF NOT EXISTS idx_miembros_email ON miembros (email);
+
+-- El enlace para invitar sin escribir un correo: se manda por WhatsApp y quien
+-- lo abra entra. Caduca, porque un enlace que vale para siempre acaba en un
+-- grupo de la familia.
+CREATE TABLE IF NOT EXISTS invitaciones (
+  codigo   TEXT PRIMARY KEY,
+  lista_id TEXT NOT NULL,
+  rol      TEXT NOT NULL DEFAULT 'editor',
+  creador  TEXT NOT NULL,
+  expira   TEXT NOT NULL,
+  usos     INTEGER NOT NULL DEFAULT 0);
 
 -- Precios vistos: lo que hace que la próxima lista venga con los precios de la
 -- anterior sin que nadie los escriba dos veces.
@@ -151,6 +187,23 @@ CREATE TABLE IF NOT EXISTS uso_dia (
   PRIMARY KEY (dia, clave));
 `);
 
+// Los artículos guardados antes de que existiera la columna no tienen
+// `lista_id`. Se rellena una vez, al arrancar: son cuatro filas hoy y es la
+// diferencia entre que una lista compartida se vea entera o a medias.
+try {
+  const sinLista = bd.prepare("SELECT id, datos FROM articulos WHERE lista_id IS NULL").all();
+  if (sinLista.length) {
+    const pon = bd.prepare('UPDATE articulos SET lista_id = ? WHERE id = ?');
+    const todos = bd.transaction(() => {
+      for (const a of sinLista) {
+        try { pon.run(JSON.parse(a.datos).listaId || null, a.id); } catch { /* fila ilegible */ }
+      }
+    });
+    todos();
+    console.log('[bd] lista_id rellenado en', sinLista.length, 'artículo(s)');
+  }
+} catch (e) { console.error('[bd] no pude rellenar lista_id:', e.message); }
+
 /** Las tablas que el sincronizador conoce. Añadir una entidad es añadirla aquí. */
 export const TABLAS = ['listas', 'articulos', 'eventos', 'encargos', 'catalogo', 'clientes', 'tiendas', 'ajustes'];
 
@@ -181,6 +234,7 @@ export function barre() {
   bd.prepare("DELETE FROM reportes WHERE expira IS NOT NULL AND expira <= ?").run(ahora());
   // Noventa días de cifras por día dan de sobra para ver una tendencia.
   bd.prepare("DELETE FROM uso_dia WHERE dia < date('now','-90 days')").run();
+  bd.prepare('DELETE FROM invitaciones WHERE expira <= ?').run(ahora());
   // Las lápidas se guardan un mes: lo justo para que un teléfono que estuvo
   // apagado se entere de que algo se borró. Más tiempo es guardar basura.
   for (const t of TABLAS) {
