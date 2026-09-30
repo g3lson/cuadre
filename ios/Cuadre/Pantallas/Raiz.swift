@@ -114,12 +114,28 @@ struct Raiz: View {
                 }
             }
         }
+        .overlay(alignment: .top) { veloDeArriba }
         .onChange(of: mostrarVentas) { _, hay in
             if !hay, pestana == .ventas { pestana = .listas }
         }
         .sheet(isPresented: $demoAjustes) {
             AjustesView().hojaDeCuadre(tema)
         }
+    }
+
+    /// EL VELO DE LA BARRA DE ESTADO.
+    ///
+    /// Al desplazar, el contenido pasa por detrás de la hora y de la batería, y
+    /// un título grande cruzando ahí deja los dos ilegibles medio segundo. Un
+    /// difuminado del ancho de la pantalla y del alto justo del margen superior
+    /// separa las dos cosas sin tapar nada: lo de debajo se sigue viendo,
+    /// borroso, que es lo que dice que la pantalla sigue hacia arriba.
+    private var veloDeArriba: some View {
+        Rectangle()
+            .fill(.ultraThinMaterial)
+            .frame(height: Pantalla.margenDeArriba)
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
     }
 
     @ViewBuilder

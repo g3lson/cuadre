@@ -190,3 +190,18 @@ extension View {
         modifier(AnchoDeLectura(tope: tope))
     }
 }
+
+/// LO QUE MIDE ESTE TELÉFONO.
+///
+/// El alto de la zona de la barra de estado cambia con el modelo —y con que el
+/// teléfono esté en una llamada— y no hay manera de sacarlo de SwiftUI sin un
+/// `GeometryReader` que, dentro de una capa que ya respeta el margen, devuelve
+/// cero. Se le pregunta a UIKit, que lo sabe.
+enum Pantalla {
+    static var margenDeArriba: CGFloat {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first(where: { $0.activationState == .foregroundActive })?
+            .keyWindow?.safeAreaInsets.top ?? 47
+    }
+}
