@@ -297,7 +297,7 @@ struct ListasView: View {
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(tema.superficie, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
-        .padding(.top, 10)
+        .padding(.top, 4)
     }
 
     private var moneda: String {

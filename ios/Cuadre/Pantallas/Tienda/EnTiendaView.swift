@@ -109,6 +109,17 @@ struct EnTiendaView: View {
 
     @ViewBuilder
     private func contenido(_ l: Lista) -> some View {
+        // La barra va en un VStack y no en un `safeAreaInset`: metida ahí se
+        // colaba debajo del reloj y la isla dinámica, y «Listas» quedaba encima
+        // de la hora.
+        VStack(spacing: 0) {
+            barraSuperior(l)
+            lista(l)
+        }
+    }
+
+    @ViewBuilder
+    private func lista(_ l: Lista) -> some View {
         List {
             Section {
                 titulo(l)
@@ -174,7 +185,6 @@ struct EnTiendaView: View {
         .environment(\.defaultMinListRowHeight, 1)
         .scrollDismissesKeyboard(.immediately)
         .refreshable { await sincronizador?.sincroniza() }
-        .safeAreaInset(edge: .top, spacing: 0) { barraSuperior(l) }
     }
 
     // MARK: - Arriba
@@ -490,18 +500,12 @@ struct EnTiendaView: View {
     }
 
     private var sinLista: some View {
-        VStack(spacing: 14) {
-            IconoView(icono: .bolsa, tamano: 44, grosor: 2).foregroundStyle(tema.neutral500)
-            Text("No hay ninguna compra abierta").font(tema.titulo(24)).foregroundStyle(tema.texto)
-            Text("Crea una lista en la pestaña Listas y vuelve aquí cuando estés en la tienda.")
-                .font(tema.texto(15))
-                .foregroundStyle(tema.neutral700)
-                .multilineTextAlignment(.center)
+        Vacio(icono: .bolsa,
+              titulo: "No hay ninguna compra abierta",
+              texto: "Aquí se lleva la compra en vivo: vas marcando lo que echas al carrito y la app suma sola. Crea una lista y vuelve cuando estés en la tienda.") {
             Button("Ir a mis listas") { pestana = .listas }
-                .buttonStyle(BotonSuave())
-                .frame(maxWidth: 260)
+                .buttonStyle(BotonPrincipal())
         }
-        .padding(30)
     }
 
     // MARK: - Lo que hace

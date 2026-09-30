@@ -24,8 +24,16 @@ struct VentasView: View {
     @State private var nuevoEncargo = Demo.abre("encargo")
     @State private var nuevoEvento = false
     @State private var comprobante: Encargo?
+    @State private var aBorrar: Evento?
 
-    private var evento: Evento? { eventos.first { $0.estado == "abierto" } ?? eventos.first }
+    /// Cuál se está mirando. Por defecto, la última abierta; si se elige otra,
+    /// esa. Sin esto solo se veía una venta y las demás no existían.
+    @State private var elegido: String?
+    private var abiertos: [Evento] { eventos.filter { $0.estado == "abierto" } }
+    private var evento: Evento? {
+        if let id = elegido, let e = eventos.first(where: { $0.id == id }) { return e }
+        return abiertos.first ?? eventos.first
+    }
     private var encargos: [Encargo] { todos.filter { $0.eventoId == evento?.id } }
     private var pendientes: [Encargo] { encargos.filter { !$0.cobrado } }
     private var cobrados: [Encargo] { encargos.filter(\.cobrado) }
@@ -52,19 +60,85 @@ struct VentasView: View {
         .sheet(item: $comprobante) { o in
             ComprobanteView(encargo: o, moneda: ajustes.moneda).hojaDeCuadre(tema)
         }
+        .confirmationDialog("¿Borrar «\(aBorrar?.titulo ?? "")»?",
+                            isPresented: .init(get: { aBorrar != nil }, set: { if !$0 { aBorrar = nil } }),
+                            titleVisibility: .visible) {
+            Button("Borrar la venta", role: .destructive) {
+                if let e = aBorrar {
+                    for o in Almacen.encargos(ctx, de: e.id) { o.entierro() }
+                    e.entierro()
+                    if elegido == e.id { elegido = nil }
+                    try? ctx.save()
+                    Task { await sincronizador?.sincroniza() }
+                }
+                aBorrar = nil
+            }
+            Button("Dejarla", role: .cancel) { aBorrar = nil }
+        } message: {
+            Text("Se va con todos sus encargos, cobrados o no. No hay papelera.")
+        }
     }
 
     @ViewBuilder
     private func contenido(_ e: Evento) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                HStack {
+                HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 6) {
-                        Etiqueta(texto: e.estado == "abierto" ? "Despachando en vivo" : "Cerrado",
+                        Etiqueta(texto: e.estado == "abierto" ? "Despachando en vivo" : "Cerrada",
+                                 fondo: e.estado == "abierto" ? nil : tema.superficie,
+                                 tinta: e.estado == "abierto" ? nil : tema.neutral700,
                                  punto: e.estado == "abierto" ? tema.acento2_700 : nil)
-                        Text(e.titulo).font(tema.titulo(30)).foregroundStyle(tema.texto)
+
+                        // El título es el selector: con más de una venta abierta,
+                        // cambiar de una a otra tiene que ser un toque donde ya
+                        // se está mirando, no un botón en otra esquina.
+                        Menu {
+                            if eventos.count > 1 {
+                                Section("Tus ventas") {
+                                    ForEach(eventos.prefix(15)) { otro in
+                                        Button {
+                                            elegido = otro.id
+                                        } label: {
+                                            let cuantos = Almacen.encargos(ctx, de: otro.id).count
+                                            Label("\(otro.titulo) · \(Formato.dia(otro.fecha)) · \(cuantos)",
+                                                  systemImage: otro.id == e.id ? "checkmark" :
+                                                    (otro.estado == "abierto" ? "circle" : "checkmark.circle"))
+                                        }
+                                    }
+                                }
+                            }
+                            Section {
+                                Button { nuevoEvento = true } label: {
+                                    Label("Empezar otra venta", systemImage: "plus")
+                                }
+                                Button {
+                                    e.estado = e.estado == "abierto" ? "cerrada" : "abierto"
+                                    e.toco(); try? ctx.save()
+                                } label: {
+                                    Label(e.estado == "abierto" ? "Cerrar esta venta" : "Volver a abrirla",
+                                          systemImage: e.estado == "abierto" ? "lock" : "lock.open")
+                                }
+                                Button(role: .destructive) { aBorrar = e } label: {
+                                    Label("Borrar esta venta", systemImage: "trash")
+                                }
+                            }
+                        } label: {
+                            HStack(spacing: 6) {
+                                Text(e.titulo).font(tema.titulo(30)).multilineTextAlignment(.leading)
+                                IconoView(icono: .abajo, tamano: 18, grosor: 3)
+                                    .padding(.top, 4)
+                            }
+                            .foregroundStyle(tema.texto)
+                        }
+
+                        if eventos.count > 1 {
+                            Text("\(abiertos.count) abierta\(abiertos.count == 1 ? "" : "s") de \(eventos.count)")
+                                .font(tema.texto(13))
+                                .foregroundStyle(tema.neutral700)
+                        }
                     }
-                    Spacer()
+                    Spacer(minLength: 8)
                     Button { nuevoEvento = true } label: { IconoView(icono: .mas, tamano: 20) }
                         .buttonStyle(BotonRedondo())
                         .accessibilityLabel("Nueva venta")
@@ -242,16 +316,12 @@ struct VentasView: View {
     }
 
     private var sinEvento: some View {
-        VStack(spacing: 14) {
-            IconoView(icono: .balanza, tamano: 44, grosor: 2).foregroundStyle(tema.neutral500)
-            Text("Todavía no hay ninguna venta").font(tema.titulo(24)).foregroundStyle(tema.texto)
-            Text("Una venta es un día de despacho: «Pescado del viernes», «Pollo del sábado». Dentro van los encargos de cada cliente.")
-                .font(tema.texto(15)).foregroundStyle(tema.neutral700).multilineTextAlignment(.center)
+        Vacio(icono: .balanza,
+              titulo: "Empieza un día de venta",
+              texto: "Una venta es un día de despacho: «Pescado del viernes», «Pollo del sábado». Dentro van los encargos de cada cliente, con su peso y su tarifa.") {
             Button("Empezar una venta") { nuevoEvento = true }
                 .buttonStyle(BotonPrincipal())
-                .frame(maxWidth: 280)
         }
-        .padding(30)
     }
 
     // MARK: - Lo que hace
