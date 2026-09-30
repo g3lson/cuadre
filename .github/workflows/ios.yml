@@ -76,10 +76,11 @@ jobs:
             --predicate 'processImagePath CONTAINS "Cuadre"' > registro-simulador.txt 2>&1 &
           LOGPID=$!
 
-          captura() {   # captura <nombre> <pestaña> [tema]
+          captura() {   # captura <nombre> <pestaña> [hoja] [tema]
             xcrun simctl terminate "$UDID" "$APLICACION" 2>/dev/null || true
             sleep 1
-            xcrun simctl launch "$UDID" "$APLICACION" -demo -pestana "$2" -tema "${3:-barro}" >/dev/null || true
+            xcrun simctl launch "$UDID" "$APLICACION" -demo \
+              -pestana "$2" -abre "${3:-nada}" -tema "${4:-barro}" >/dev/null || true
             sleep "${ESPERA:-6}"
             xcrun simctl io "$UDID" screenshot "captura-$1.png" || true
             echo "  · $1"
@@ -92,10 +93,22 @@ jobs:
           captura 04-el-cuadre cuadre
           captura 05-ajustes ajustes
 
+          # Las que se abren tocando algo.
+          captura 06-nueva-lista listas nueva
+          captura 07-ficha-producto tienda ficha
+          captura 08-columnas tienda columnas
+          captura 09-asistente tienda asistente
+          captura 10-cerrar-compra tienda cerrar
+          captura 11-nuevo-encargo ventas encargo
+          captura 12-comprobante ventas comprobante
+          captura 13-catalogo ajustes catalogo
+          captura 14-chinola ajustes chinola
+          captura 15-tu-cuenta ajustes cuenta
+
           # Los otros dos temas, para ver que el cambio es solo de tokens.
-          captura 06-mercado tienda mercado
-          captura 07-noche tienda noche
-          captura 08-noche-cuadre cuadre noche
+          captura 20-mercado tienda nada mercado
+          captura 21-noche tienda nada noche
+          captura 22-noche-cuadre cuadre nada noche
 
           # Y la de entrar, que es la primera que ve alguien nuevo.
           xcrun simctl terminate "$UDID" "$APLICACION" 2>/dev/null || true

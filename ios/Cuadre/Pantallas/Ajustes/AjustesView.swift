@@ -14,11 +14,17 @@ struct AjustesView: View {
 
     @State private var editandoNombre = false
     @State private var nombre = ""
+    @State private var camino: [Destino] = {
+        for d in [Destino.catalogo, .tarifas, .chinola, .cuenta] where Demo.abre(String(describing: d)) {
+            return [d]
+        }
+        return []
+    }()
 
     private var ajustes: Ajustes { Almacen.ajustes(ctx, de: sesion.usuario?.id ?? "") }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $camino) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     perfil

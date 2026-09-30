@@ -21,7 +21,7 @@ struct VentasView: View {
            sort: [SortDescriptor<Encargo>(\.actualizado)])
     private var todos: [Encargo]
 
-    @State private var nuevoEncargo = false
+    @State private var nuevoEncargo = Demo.abre("encargo")
     @State private var nuevoEvento = false
     @State private var comprobante: Encargo?
 
@@ -37,6 +37,9 @@ struct VentasView: View {
                 if let evento { contenido(evento) } else { sinEvento }
             }
             .fondoDelTema(tema)
+            .onAppear {
+                if Demo.abre("comprobante"), comprobante == nil { comprobante = cobrados.first }
+            }
         }
         .sheet(isPresented: $nuevoEncargo) {
             if let evento {

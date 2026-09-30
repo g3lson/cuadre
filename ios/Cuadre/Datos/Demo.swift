@@ -23,6 +23,15 @@ enum Demo {
         return args[i + 1]
     }
 
+    /// Qué hoja abrir nada más arrancar: `-abre ficha`. Es lo que permite
+    /// fotografiar las pantallas que normalmente se abren tocando algo.
+    static func abre(_ cual: String) -> Bool {
+        guard encendido else { return false }
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: "-abre"), i + 1 < args.count else { return false }
+        return args[i + 1] == cual
+    }
+
     /// Con qué tema arrancar: `-tema noche`. Sirve para fotografiar los tres
     /// sin tocar Ajustes.
     static var tema: String? {

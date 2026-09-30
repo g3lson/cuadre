@@ -27,9 +27,9 @@ struct EnTiendaView: View {
     private var todos: [Articulo]
 
     @State private var abierto: Articulo?
-    @State private var columnasAbiertas = false
-    @State private var cerrando = false
-    @State private var asistente = false
+    @State private var columnasAbiertas = Demo.abre("columnas")
+    @State private var cerrando = Demo.abre("cerrar")
+    @State private var asistente = Demo.abre("asistente")
 
     private var lista: Lista? {
         if let id = listaId, let l = listas.first(where: { $0.id == id }) { return l }
@@ -66,6 +66,11 @@ struct EnTiendaView: View {
             if let lista {
                 AsistenteView(lista: lista).hojaDeCuadre(tema)
             }
+        }
+        .onAppear {
+            // Solo en modo demo: abrir la ficha del primer producto pendiente
+            // para poder fotografiarla.
+            if Demo.abre("ficha"), abierto == nil { abierto = faltan.first }
         }
         .fullScreenCover(isPresented: $cerrando) {
             if let lista {

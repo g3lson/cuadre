@@ -19,7 +19,7 @@ struct ListasView: View {
            sort: [SortDescriptor<Lista>(\.orden), SortDescriptor<Lista>(\.fecha, order: .reverse)])
     private var listas: [Lista]
 
-    @State private var creando = false
+    @State private var creando = Demo.abre("nueva")
     @State private var abriendoAjustes = false
     @State private var aBorrar: Lista?
 
