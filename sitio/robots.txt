@@ -1,0 +1,7 @@
+# Los reportes compartidos son privados: llevan una dirección aleatoria y no
+# deben indexarse aunque alguien pegue el enlace en un sitio público.
+User-agent: *
+Disallow: /r/
+Allow: /
+
+Sitemap: https://cuadre.fente.com.do/sitemap.xml

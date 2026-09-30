@@ -1,0 +1,99 @@
+/* Hoja de las páginas públicas de Cuadre: la portada, las legales y soporte.
+   Son páginas que alguien abre para leer una condición concreta, muchas veces
+   desde el móvil y con mala señal, así que no cargan nada más que esto.
+   El modo claro y el oscuro se respetan los dos: la paleta es la misma de la
+   app (Barro de día, Noche de noche). */
+
+:root {
+  --bg: #f5ead8;
+  --superficie: #fffaf1;
+  --texto: #201e1d;
+  --tenue: #645c50;
+  --acento: #8c491a;
+  --barro: #c67139;
+  --salvia: #56633f;
+  --salvia-suave: #e1eecc;
+  --borde: #e3d6bf;
+  --radio: 18px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141518;
+    --superficie: #1e2025;
+    --texto: #f3efe7;
+    --tenue: #a5a8ae;
+    --acento: #f0b24a;
+    --barro: #f0b24a;
+    --salvia: #8ad6b0;
+    --salvia-suave: #1e3a2c;
+    --borde: #2f333a;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--texto);
+  font-family: 'Figtree', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 16px;
+  line-height: 1.65;
+  -webkit-text-size-adjust: 100%;
+  padding: 0 20px calc(48px + env(safe-area-inset-bottom));
+  text-wrap: pretty;
+}
+
+main, .cabecera, footer { max-width: 720px; margin: 0 auto; }
+
+.cabecera {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap;
+  padding: calc(22px + env(safe-area-inset-top)) 0 10px;
+}
+.marca { display: flex; align-items: center; gap: 11px; text-decoration: none; color: inherit; }
+.marca img { border-radius: 13px; }
+.marca span { font-family: 'Caprasimo', Georgia, serif; font-size: 22px; letter-spacing: -0.01em; display: flex; flex-direction: column; line-height: 1.1; }
+.marca small { font-family: 'Figtree', system-ui, sans-serif; font-weight: 700; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--tenue); }
+.idiomas { display: flex; gap: 6px; flex-wrap: wrap; }
+.idiomas a {
+  font-size: 12px; font-weight: 700; text-decoration: none; color: var(--tenue);
+  padding: 7px 13px; border: 1px solid var(--borde); border-radius: 999px; background: var(--superficie);
+}
+.idiomas a:hover { color: var(--texto); border-color: var(--barro); }
+
+section { padding: 26px 0 10px; border-top: 1px solid var(--borde); }
+section:first-of-type { border-top: none; }
+
+.sobre { margin: 0; font-size: 11px; font-weight: 800; letter-spacing: 0.13em; text-transform: uppercase; color: var(--acento); }
+h1, h2, h3 { font-family: 'Caprasimo', Georgia, serif; font-weight: 400; }
+h1 { margin: 10px 0 12px; font-size: clamp(30px, 5.6vw, 42px); line-height: 1.08; letter-spacing: -0.02em; }
+h2 { margin: 34px 0 10px; font-size: 24px; letter-spacing: -0.01em; }
+h3 { margin: 22px 0 6px; font-size: 18px; }
+.entradilla { font-size: 18px; line-height: 1.6; color: var(--tenue); }
+p, li { margin: 0 0 12px; }
+ul, ol { padding-left: 22px; }
+a { color: var(--acento); text-underline-offset: 3px; }
+strong { font-weight: 700; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.92em; background: var(--superficie); border: 1px solid var(--borde); border-radius: 7px; padding: 1px 6px; }
+
+.tarjeta { background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio); padding: 18px 20px; margin: 18px 0; }
+.tarjeta p:last-child { margin-bottom: 0; }
+.destacada { border-left: 4px solid var(--barro); }
+.verde { background: var(--salvia-suave); border-color: transparent; }
+
+table { width: 100%; border-collapse: collapse; margin: 14px 0 20px; font-size: 14px; display: block; overflow-x: auto; }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--borde); vertical-align: top; }
+th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--tenue); }
+
+.fecha { font-size: 13px; color: var(--tenue); }
+footer { padding: 30px 0 0; border-top: 1px solid var(--borde); margin-top: 34px; font-size: 13px; color: var(--tenue); }
+footer a { margin-right: 14px; display: inline-block; }
+
+/* Botones, iguales que en la app: pastilla y nada más. */
+.botones { display: flex; gap: 12px; flex-wrap: wrap; margin: 22px 0 0; }
+.btn { display: inline-flex; align-items: center; gap: 8px; padding: 15px 26px; border-radius: 999px;
+       text-decoration: none; font-weight: 800; font-size: 15px; }
+.btn.primario { background: var(--barro); color: #f5ead8; }
+.btn.suave { border: 1px solid var(--borde); color: var(--texto); background: var(--superficie); }
+@media (prefers-color-scheme: dark) { .btn.primario { color: #141518; } }

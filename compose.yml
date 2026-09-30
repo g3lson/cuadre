@@ -1,0 +1,23 @@
+# El stack de Cuadre en athenas. Un contenedor: la API y el sitio son la misma
+# pieza y el mismo dominio.
+#
+# No abre puertos: lo alcanza Nginx Proxy Manager por nombre de contenedor
+# dentro de la red `proxy_default`, que es como se publica todo aquí.
+services:
+  cuadre:
+    build:
+      context: .
+      dockerfile: servidor/Dockerfile
+    container_name: cuadre-app
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - TZ=America/Santo_Domingo
+    volumes:
+      - ./datos:/datos          # la base SQLite; es lo único que hay que respaldar
+    networks:
+      - proxy_default
+
+networks:
+  proxy_default:
+    external: true

@@ -1,0 +1,22 @@
+{
+  "name": "cuadre-servidor",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "API y sitio de Cuadre — compra, vende y cuadra.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "CUADRE_BD=./datos/dev.db CUADRE_SITIO=http://localhost:3300 CUADRE_SITIO_DIR=../sitio PORT=3300 node --watch src/index.js",
+    "start": "node src/index.js",
+    "lint": "node --check src/index.js && for f in src/*.js src/rutas/*.js; do node --check \"$f\" || exit 1; done",
+    "prueba": "node --test 'pruebas/*.test.js'"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.11.1",
+    "express": "^4.21.2",
+    "jose": "^5.9.6",
+    "pdfkit": "^0.15.1"
+  }
+}

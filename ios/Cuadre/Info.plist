@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>es</string>
+	<key>CFBundleDisplayName</key>
+	<string>Cuadre</string>
+	<key>CFBundleName</key>
+	<string>Cuadre</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+
+	<!-- La dirección de la API. Va aquí y no compilada a fuego para poder
+	     apuntar a una máquina de pruebas cambiando solo el ajuste de compilación. -->
+	<key>CuadreAPI</key>
+	<string>$(CUADRE_API_URL)</string>
+
+	<!-- La vuelta del permiso de Chinola aterriza en este esquema. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>do.com.fente.cuadre</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>cuadre</string>
+			</array>
+		</dict>
+	</array>
+
+	<!-- Solo de pie: es una app que se usa con una mano en el pasillo del súper,
+	     y el apaisado no aporta nada a una lista. -->
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>arm64</string>
+	</array>
+	<key>UILaunchScreen</key>
+	<dict>
+		<key>UIColorName</key>
+		<string>FondoArranque</string>
+	</dict>
+
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Para leer la foto de un recibo y llenar los precios de tu lista. La foto se manda solo cuando tú tocas «Leer el recibo», y no se guarda.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Para tomarle una foto al recibo y llenar los precios de tu lista.</string>
+
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+
+	<key>UIUserInterfaceStyle</key>
+	<string>Automatic</string>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<true/>
+
+	<!-- Las tipografías de los tres temas. Si falta una aquí, SwiftUI se calla y
+	     dibuja con la del sistema: el texto sale, pero la app deja de ser ella. -->
+	<key>UIAppFonts</key>
+	<array>
+		<string>Caprasimo-Regular.ttf</string>
+		<string>Figtree-Regular.ttf</string>
+		<string>Figtree-Medium.ttf</string>
+		<string>Figtree-SemiBold.ttf</string>
+		<string>Figtree-Bold.ttf</string>
+		<string>Figtree-ExtraBold.ttf</string>
+		<string>BricolageGrotesque-Bold.ttf</string>
+		<string>BricolageGrotesque-ExtraBold.ttf</string>
+		<string>Onest-Regular.ttf</string>
+		<string>Onest-Medium.ttf</string>
+		<string>Onest-SemiBold.ttf</string>
+		<string>Onest-Bold.ttf</string>
+		<string>Onest-ExtraBold.ttf</string>
+		<string>YoungSerif-Regular.ttf</string>
+	</array>
+</dict>
+</plist>

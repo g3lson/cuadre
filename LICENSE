@@ -1,0 +1,15 @@
+Copyright (c) 2026 FENTE (Gelson Reynoso Martínez). Todos los derechos reservados.
+
+Este programa y su código fuente son propiedad de FENTE. No se concede ninguna
+licencia de uso, copia, modificación, distribución ni obra derivada, ni expresa
+ni implícita, salvo autorización escrita del titular.
+
+El código se publica en este repositorio únicamente para inspección y para
+compilarlo en los servicios de integración continua del titular. Publicarlo no
+lo convierte en software libre ni de código abierto.
+
+Marcas: «Cuadre», «Chinola» y «FENTE» son marcas del titular.
+
+Tipografías: este proyecto incluye tipografías bajo la SIL Open Font License
+1.1. Su aviso de licencia está en ios/Cuadre/Recursos/Fuentes/OFL.txt y en
+sitio/fuentes/OFL.txt, y se aplica solo a esos archivos.

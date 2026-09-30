@@ -1,0 +1,16 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "cuadre",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "servidor",
+        "run",
+        "dev"
+      ],
+      "port": 3300
+    }
+  ]
+}

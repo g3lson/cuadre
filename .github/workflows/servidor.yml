@@ -1,0 +1,54 @@
+name: Servidor · comprobar
+
+# Lo barato primero: que el JavaScript se analice y que la API arranque, conteste
+# y sepa registrar a alguien. Corre en Linux, que es diez veces más barato en
+# minutos que un Mac, y caza casi todo antes de tocar el simulador.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'servidor/**'
+      - 'sitio/**'
+      - '.github/workflows/servidor.yml'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  comprobar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Instalar
+        working-directory: servidor
+        run: npm install --no-audit --no-fund
+
+      - name: Sintaxis
+        working-directory: servidor
+        run: for f in src/*.js src/rutas/*.js; do node --check "$f" || exit 1; done
+
+      - name: Que arranque y conteste
+        working-directory: servidor
+        run: |
+          CUADRE_BD=./datos/ci.db CUADRE_SITIO=http://localhost:3300 \
+          CUADRE_SITIO_DIR=../sitio PORT=3300 node src/index.js &
+          SRV=$!
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3300/api/salud > /dev/null && break
+            sleep 1
+          done
+          curl -sf http://localhost:3300/api/salud | tee /dev/stderr | grep -q '"ok":true'
+          curl -sf http://localhost:3300/ | grep -q "Compra, vende y cuadra"
+          curl -sf http://localhost:3300/legal/privacidad.html | grep -q "privacidad"
+          kill $SRV
+
+      - name: El recorrido de una compra, de entrar a compartir el reporte
+        working-directory: servidor
+        run: node --test "pruebas/*.test.js"
