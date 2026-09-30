@@ -118,9 +118,12 @@ struct ComprobanteView: View {
         .shadow(color: .black.opacity(0.18), radius: 16, y: 6)
     }
 
+    /// Punteada, como el papel de un recibo de verdad. Es un detalle tonto y es
+    /// justo lo que hace que se lea como un recibo y no como una tarjeta.
     private var linea: some View {
-        Rectangle()
-            .fill(Color(hex: 0xc0b6a5))
+        Rayita()
+            .stroke(Color(hex: 0xc0b6a5),
+                    style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
             .frame(height: 1)
     }
 
@@ -140,5 +143,16 @@ struct ComprobanteView: View {
         let numero = encargo.telefono.filter { $0.isNumber }
         let cuerpo = texto.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         if let u = URL(string: "https://wa.me/\(numero)?text=\(cuerpo)") { abre(u) }
+    }
+}
+
+/// Una raya horizontal. `Rectangle` no se puede puntear: el guion se aplica al
+/// contorno, y el contorno de un rectángulo de un punto de alto son cuatro lados.
+private struct Rayita: Shape {
+    func path(in r: CGRect) -> Path {
+        var p = Path()
+        p.move(to: CGPoint(x: r.minX, y: r.midY))
+        p.addLine(to: CGPoint(x: r.maxX, y: r.midY))
+        return p
     }
 }

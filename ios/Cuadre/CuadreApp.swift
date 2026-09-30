@@ -22,6 +22,12 @@ struct CuadreApp: App {
         // ya se pintó vacía antes de que llegaran los datos, y la captura de la
         // integración continua salía en blanco.
         if Demo.encendido { Demo.siembra(contenedor.mainContext) }
+
+        // La tipografía de las barras de navegación se pide a UIKit, y UIKit
+        // solo la aplica a las barras que se creen DESPUÉS. Hacerlo en un
+        // `.onAppear` llega tarde para la primera pantalla que se abra.
+        let guardados = try? contenedor.mainContext.fetch(FetchDescriptor<Ajustes>())
+        Tema.de(guardados?.first?.claveTema ?? .barro).aplicaALaBarra()
     }
 
     var body: some Scene {

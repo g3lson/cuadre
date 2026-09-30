@@ -123,8 +123,8 @@ struct FichaArticuloView: View {
     private var numeros: some View {
         VStack(spacing: 4) {
             HStack(spacing: 8) {
-                Text("Cantidad").font(tema.texto(15, .bold))
-                Spacer()
+                Text("Cantidad").font(tema.texto(15, .bold)).lineLimit(1).layoutPriority(-1)
+                Spacer(minLength: 4)
                 HStack(spacing: 6) {
                     HStack(spacing: 0) {
                         Button { paso(-1) } label: {
@@ -147,14 +147,18 @@ struct FichaArticuloView: View {
 
                     Button { withAnimation(.snappy) { menuUnidad.toggle() } } label: {
                         HStack(spacing: 4) {
-                            Text(unidad.id).font(tema.texto(14, .heavy))
+                            Text(unidad.id).font(tema.texto(14, .heavy)).lineLimit(1)
                             IconoView(icono: .abajo, tamano: 14, grosor: 3)
                         }
+                        // Sin `fixedSize`, la fila aprieta y el texto se queda en
+                        // cero: el botón sale como un círculo con una flecha.
+                        .fixedSize()
                         .foregroundStyle(tema.oscuro ? tema.texto : tema.neutral100)
                         .padding(.horizontal, 13)
                         .frame(height: 44)
                         .background(tema.neutral900, in: Capsule())
                     }
+                    .fixedSize()
                     .accessibilityLabel("Unidad: \(unidad.etiqueta)")
                 }
             }
