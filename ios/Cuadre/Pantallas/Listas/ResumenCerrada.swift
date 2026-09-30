@@ -130,6 +130,9 @@ struct ResumenCerrada: View {
                         }
                     }
                     .padding(.horizontal, 20)
+                    // Despegado del agarradero de la hoja: sin esto, el título
+                    // grande le pasa por encima.
+                    .padding(.top, 20)
                     .padding(.bottom, 40)
                 }
                 .fondoDelTema(tema)

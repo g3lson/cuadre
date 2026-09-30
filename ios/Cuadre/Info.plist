@@ -68,6 +68,10 @@
 
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Para leer la foto de un recibo y llenar los precios de tu lista. La foto se manda solo cuando tú tocas «Leer el recibo», y no se guarda.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Para dictar la lista en voz alta en vez de escribirla. Cuando tu iPhone puede, el reconocimiento se hace dentro del propio teléfono y el audio no sale de él.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Para dictar la lista en voz alta. Solo se graba mientras tienes pulsado el micrófono en la pantalla de llenar la lista.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Para tomarle una foto al recibo y llenar los precios de tu lista.</string>
 

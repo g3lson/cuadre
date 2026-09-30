@@ -29,53 +29,66 @@ enum IA {
         }
     }
 
-    private struct RespuestaLista: Decodable { let productos: [ProductoLeido] }
+    private struct RespuestaLista: Decodable { let productos: [ProductoLeido]; var modelo: String = "" }
     private struct RespuestaRecibo: Decodable {
         let tienda: String
         let fecha: String
         let total: Double
         let productos: [ProductoLeido]
+        var modelo: String = ""
     }
     struct Recibo {
         var tienda: String
         var total: Double
         var productos: [ProductoLeido]
+        /// Quién lo leyó. Vacío cuando lo hizo el propio teléfono.
+        var modelo: String = ""
 
-        init(tienda: String, total: Double, productos: [ProductoLeido]) {
-            self.tienda = tienda; self.total = total; self.productos = productos
+        init(tienda: String, total: Double, productos: [ProductoLeido], modelo: String = "") {
+            self.tienda = tienda; self.total = total; self.productos = productos; self.modelo = modelo
         }
+    }
+
+    /// Lo que devuelve convertir un texto en productos, con quién lo hizo.
+    struct ListaLeida {
+        var productos: [ProductoLeido]
+        var modelo: String
     }
 
     private struct PeticionLista: Encodable {
         let texto: String
         let tienda: String
         let conocidos: [Conocido]
+        var modelo: String = ""
         struct Conocido: Encodable { let nombre: String; let unidad: String; let precio: Double }
     }
-    private struct PeticionRecibo: Encodable { let imagen: String; let tipo: String }
-    private struct PeticionReciboTexto: Encodable { let texto: String }
+    private struct PeticionRecibo: Encodable { let imagen: String; let tipo: String; var modelo: String = "" }
+    private struct PeticionReciboTexto: Encodable { let texto: String; var modelo: String = "" }
 
     /// De «2 galones de leche y 5 libras de azúcar» a dos filas de lista.
     ///
     /// Se le pasan los productos que esta persona ya compra: así «leche» vuelve
     /// como «Leche entera» con su último precio en vez de como un producto nuevo
     /// sin precio, que es justo el trabajo que se quería ahorrar.
-    static func lista(de texto: String, tienda: String, conocidos: [(String, String, Double)]) async throws -> [ProductoLeido] {
+    static func lista(de texto: String, tienda: String,
+                      conocidos: [(String, String, Double)], modelo: String = "") async throws -> ListaLeida {
         let r: RespuestaLista = try await Api.shared.pide(
             "api/ia/lista", metodo: "POST",
             cuerpo: PeticionLista(
                 texto: texto, tienda: tienda,
-                conocidos: conocidos.map { .init(nombre: $0.0, unidad: $0.1, precio: $0.2) }))
-        return r.productos
+                conocidos: conocidos.map { .init(nombre: $0.0, unidad: $0.1, precio: $0.2) },
+                modelo: modelo))
+        return ListaLeida(productos: r.productos, modelo: r.modelo)
     }
 
     /// El texto que el propio teléfono sacó del recibo, para que el servidor lo
     /// ordene. Es el camino normal: dos kilobytes en vez de ciento veinte, y la
     /// foto no sale del aparato.
-    static func recibo(deTexto texto: String) async throws -> Recibo {
+    static func recibo(deTexto texto: String, modelo: String = "") async throws -> Recibo {
         let r: RespuestaRecibo = try await Api.shared.pide(
-            "api/ia/recibo-texto", metodo: "POST", cuerpo: PeticionReciboTexto(texto: texto))
-        return Recibo(tienda: r.tienda, total: r.total, productos: r.productos)
+            "api/ia/recibo-texto", metodo: "POST",
+            cuerpo: PeticionReciboTexto(texto: texto, modelo: modelo))
+        return Recibo(tienda: r.tienda, total: r.total, productos: r.productos, modelo: r.modelo)
     }
 
     /// La foto entera. Solo se usa cuando el teléfono no pudo leer letras en
@@ -83,12 +96,12 @@ enum IA {
     /// lado se lee igual de bien que el original de doce megapíxeles y sube en
     /// una décima parte del tiempo, que en el parqueo del súper es la diferencia
     /// entre funcionar y no.
-    static func recibo(_ imagen: UIImage) async throws -> Recibo {
+    static func recibo(_ imagen: UIImage, modelo: String = "") async throws -> Recibo {
         guard let jpeg = comprime(imagen) else { throw Api.Fallo.respuestaRara }
         let r: RespuestaRecibo = try await Api.shared.pide(
             "api/ia/recibo", metodo: "POST",
-            cuerpo: PeticionRecibo(imagen: jpeg.base64EncodedString(), tipo: "image/jpeg"))
-        return Recibo(tienda: r.tienda, total: r.total, productos: r.productos)
+            cuerpo: PeticionRecibo(imagen: jpeg.base64EncodedString(), tipo: "image/jpeg", modelo: modelo))
+        return Recibo(tienda: r.tienda, total: r.total, productos: r.productos, modelo: r.modelo)
     }
 
     private static func comprime(_ imagen: UIImage, lado: CGFloat = 1600) -> Data? {
@@ -225,5 +238,75 @@ enum Reportes {
 
     static func delCuadre(_ d: DelCuadre) async throws -> Compartible {
         try await Api.shared.pide("api/reportes", metodo: "POST", cuerpo: Sobre(clase: "cuadre", datos: d))
+    }
+}
+
+// MARK: - Compartir una lista
+
+enum Compartir {
+    struct Miembro: Decodable, Identifiable, Hashable {
+        var id: String { email }
+        let email: String
+        var nombre: String = ""
+        var rol: String = "editor"
+        /// `false` = invitado que todavía no ha entrado a Cuadre.
+        var dentro: Bool = false
+        var visto: String?
+
+        var comoSeLlama: String { nombre.isEmpty ? String(email.split(separator: "@").first ?? "") : nombre }
+        var inicial: String { Formato.inicial(comoSeLlama) }
+        var esDueño: Bool { rol == "dueño" }
+    }
+
+    private struct RespuestaMiembros: Decodable { let miembros: [Miembro]; var yo: String? }
+    private struct Invita: Encodable { let correo: String }
+    struct Enlace: Decodable { let codigo: String; let url: String; let texto: String }
+    struct Aceptada: Decodable { let listaId: String; var nombre: String? }
+
+    static func miembros(de listaId: String) async throws -> [Miembro] {
+        let r: RespuestaMiembros = try await Api.shared.pide("api/listas/\(listaId)/miembros")
+        return r.miembros
+    }
+
+    static func invita(_ correo: String, a listaId: String) async throws -> [Miembro] {
+        let r: RespuestaMiembros = try await Api.shared.pide(
+            "api/listas/\(listaId)/miembros", metodo: "POST", cuerpo: Invita(correo: correo))
+        return r.miembros
+    }
+
+    static func quita(_ correo: String, de listaId: String) async throws {
+        let codificado = correo.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? correo
+        let _: Vacio = try await Api.shared.pide(
+            "api/listas/\(listaId)/miembros/\(codificado)", metodo: "DELETE")
+    }
+
+    static func enlace(de listaId: String) async throws -> Enlace {
+        try await Api.shared.pide("api/listas/\(listaId)/enlace", metodo: "POST", cuerpo: Vacio())
+    }
+
+    static func acepta(_ codigo: String) async throws -> Aceptada {
+        try await Api.shared.pide("api/listas/invitacion/\(codigo)", metodo: "POST")
+    }
+}
+
+// MARK: - Los modelos de IA que hay
+
+extension IA {
+    struct Modelo: Decodable, Identifiable, Hashable {
+        let id: String
+        let nombre: String
+        var proveedor: String = ""
+        var contexto: Int = 0
+        /// De los que Cuadre trae puestos: comprobados y gratuitos.
+        var puesto: Bool = false
+    }
+    struct Catalogo: Decodable {
+        struct Puestos: Decodable { let texto: [String]; let foto: [String] }
+        let puestos: Puestos
+        let modelos: [Modelo]
+    }
+
+    static func modelos() async throws -> Catalogo {
+        try await Api.shared.pide("api/ia/modelos")
     }
 }

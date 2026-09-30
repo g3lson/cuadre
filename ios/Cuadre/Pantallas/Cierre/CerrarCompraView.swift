@@ -28,7 +28,11 @@ struct CerrarCompraView: View {
 
     private var articulos: [Articulo] { Almacen.articulos(ctx, de: lista.id) }
     private var comprados: [Articulo] { articulos.filter(\.hecho) }
-    private var faltaron: [Articulo] { articulos.filter { !$0.hecho } }
+    /// Sin los que se quedaron sin nombre: esos no son productos que faltaron,
+    /// son fichas que alguien abrió y cerró.
+    private var faltaron: [Articulo] {
+        articulos.filter { !$0.hecho && !$0.nombre.trimmingCharacters(in: .whitespaces).isEmpty }
+    }
     private var pagado: Double { comprados.reduce(0) { $0 + $1.total } }
     private var diferencia: Double { lista.presupuesto - pagado }
     private var ajustes: Ajustes { Almacen.ajustes(ctx, de: sesion.usuario?.id ?? "") }
@@ -181,10 +185,18 @@ struct CerrarCompraView: View {
             }
         }
 
-        if !lista.notaCierre.isEmpty, lista.notaCierre != "Compraste todo" {
-            VStack(alignment: .leading, spacing: 6) {
-                Rotulo("Faltó", color: tema.acento800)
-                Text(lista.notaCierre).font(tema.texto(15))
+        if !faltaron.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                Rotulo("Lo que faltó", color: tema.acento800)
+                ForEach(faltaron) { a in
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(a.nombre).font(tema.texto(15, .bold))
+                        Spacer(minLength: 8)
+                        Text((destinos[a.id] ?? .proxima).corto)
+                            .font(tema.texto(13, .semibold))
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
             }
             .foregroundStyle(tema.acento800)
             .padding(16)

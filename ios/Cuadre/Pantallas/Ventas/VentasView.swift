@@ -326,6 +326,5 @@ struct NuevoEventoView: View {
             }
         }
         .presentationDetents([.medium])
-        .onAppear { enElTitulo = true }
     }
 }

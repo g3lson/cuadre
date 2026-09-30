@@ -11,7 +11,7 @@ import SwiftUI
 enum Icono: String {
     case lista, bolsa, balanza, circuloCheck
     case check, mas, equis, chevron, atras, abajo
-    case columnas, camara, chispa, engranaje, compartir, documento
+    case columnas, camara, chispa, engranaje, compartir, documento, microfono
     case papelera, lapiz, buscar, reloj, persona, salir, enlace, aviso, whatsapp
 
     /// El trazo, en la caja de 24×24.
@@ -117,6 +117,17 @@ enum Icono: String {
             }
             puntos([.init(x: 8, y: 6), .init(x: 9.5, y: 3), .init(x: 14.5, y: 3), .init(x: 16, y: 6)])
             circulo(.init(x: 12, y: 13.5), 3.6)
+
+        case .microfono:
+            p { path in
+                path.addRoundedRect(in: CGRect(x: 9, y: 2, width: 6, height: 11),
+                                    cornerSize: .init(width: 3, height: 3))
+            }
+            p { path in
+                path.move(to: .init(x: 5, y: 11))
+                path.addCurve(to: .init(x: 19, y: 11), control1: .init(x: 5, y: 18), control2: .init(x: 19, y: 18))
+            }
+            linea(.init(x: 12, y: 18), .init(x: 12, y: 22))
 
         case .chispa:
             p { path in

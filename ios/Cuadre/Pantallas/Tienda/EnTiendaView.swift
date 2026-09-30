@@ -8,8 +8,10 @@ import UIKit
 /// es una lista de verdad —una fila por producto, con cantidad, precio y total
 /// al lado— y no tarjetas: de un vistazo se ve qué falta y cuánto llevas.
 ///
-/// Las columnas se eligen: quien solo quiere ir marcando las apaga todas y ve
-/// nombres; quien está cuadrando al céntimo las enciende.
+/// Y por eso va **agrupada por pasillo**. Una lista en el orden en que se
+/// escribió obliga a cruzar el súper cuatro veces; agrupada por categoría, en el
+/// orden en que están los pasillos, se recorre una vez. Es el cambio que más
+/// tiempo ahorra de toda la app y no se ve en ninguna captura.
 struct EnTiendaView: View {
     @Environment(\.tema) private var tema
     @Environment(\.modelContext) private var ctx
@@ -30,25 +32,48 @@ struct EnTiendaView: View {
     @State private var columnasAbiertas = Demo.abre("columnas")
     @State private var cerrando = Demo.abre("cerrar")
     @State private var asistente = Demo.abre("asistente")
+    @State private var compartiendo = Demo.abre("compartir")
+    @State private var busca = ""
+    @State private var buscando = false
+    @State private var miembros: [Compartir.Miembro] = []
+    @FocusState private var enLaBusqueda: Bool
 
     private var lista: Lista? {
         if let id = listaId, let l = listas.first(where: { $0.id == id }) { return l }
         return listas.first { !$0.cerrada }
     }
     private var articulos: [Articulo] { todos.filter { $0.listaId == lista?.id } }
-    private var faltan: [Articulo] { articulos.filter { !$0.hecho } }
-    private var enCarrito: [Articulo] { articulos.filter(\.hecho) }
-    private var gastado: Double { enCarrito.reduce(0) { $0 + $1.total } }
+    private var enCarrito: [Articulo] { filtrados.filter(\.hecho) }
+    private var gastado: Double { articulos.filter(\.hecho).reduce(0) { $0 + $1.total } }
     private var ajustes: Ajustes { Almacen.ajustes(ctx, de: sesion.usuario?.id ?? "") }
+    private var compartida: Bool { miembros.count > 1 }
+    private var yo: String {
+        let n = sesion.usuario?.nombre ?? ""
+        return n.split(separator: " ").first.map(String.init) ?? (sesion.usuario?.inicial ?? "")
+    }
+
+    /// Lo que se ve, después de buscar.
+    private var filtrados: [Articulo] {
+        let t = busca.folding(options: .diacriticInsensitive, locale: nil).lowercased()
+        guard !t.isEmpty else { return articulos }
+        return articulos.filter {
+            let n = ($0.nombre + " " + $0.nota).folding(options: .diacriticInsensitive, locale: nil).lowercased()
+            return n.contains(t)
+        }
+    }
+    private var faltan: [Articulo] { filtrados.filter { !$0.hecho } }
+
+    /// Por comprar, repartido por pasillo y en el orden del recorrido.
+    private var porPasillo: [(categoria: String, articulos: [Articulo])] {
+        Dictionary(grouping: faltan, by: \.categoria)
+            .map { (categoria: $0.key, articulos: $0.value.sorted { $0.orden < $1.orden }) }
+            .sorted { Categoria.orden($0.categoria) < Categoria.orden($1.categoria) }
+    }
 
     var body: some View {
         NavigationStack {
             Group {
-                if let lista {
-                    contenido(lista)
-                } else {
-                    sinLista
-                }
+                if let lista { contenido(lista) } else { sinLista }
             }
             .fondoDelTema(tema)
         }
@@ -59,26 +84,24 @@ struct EnTiendaView: View {
             }
             .hojaDeCuadre(tema)
         }
-        .sheet(isPresented: $columnasAbiertas) {
-            ColumnasView(ajustes: ajustes).hojaDeCuadre(tema)
-        }
+        .sheet(isPresented: $columnasAbiertas) { ColumnasView(ajustes: ajustes).hojaDeCuadre(tema) }
         .sheet(isPresented: $asistente) {
-            if let lista {
-                AsistenteView(lista: lista).hojaDeCuadre(tema)
-            }
+            if let lista { AsistenteView(lista: lista).hojaDeCuadre(tema) }
         }
-        .onAppear {
-            // Solo en modo demo: abrir la ficha del primer producto pendiente
-            // para poder fotografiarla.
-            if Demo.abre("ficha"), abierto == nil { abierto = faltan.first }
+        .sheet(isPresented: $compartiendo) {
+            if let lista {
+                CompartirListaView(lista: lista, miembros: $miembros).hojaDeCuadre(tema)
+            }
         }
         .fullScreenCover(isPresented: $cerrando) {
             if let lista {
-                CerrarCompraView(lista: lista) {
-                    listaId = nil
-                    pestana = .listas
-                }
+                CerrarCompraView(lista: lista) { listaId = nil; pestana = .listas }
             }
+        }
+        .task(id: lista?.id) { await traeMiembros() }
+        .onChange(of: sesion.pulso) { _, _ in
+            // Alguien tocó esta lista desde otro teléfono.
+            Task { await sincronizador?.sincroniza() }
         }
     }
 
@@ -86,24 +109,28 @@ struct EnTiendaView: View {
 
     @ViewBuilder
     private func contenido(_ l: Lista) -> some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                barraSuperior(l)
+        List {
+            Section {
                 titulo(l)
+                if l.cerrada { bannerCerrada(l) } else { tarjetaCarrito(l) }
+            }
+            .listRowInsets(EdgeInsets(top: 2, leading: 16, bottom: 2, trailing: 16))
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
 
-                if l.cerrada {
-                    bannerCerrada(l)
-                } else {
-                    tarjetaCarrito(l)
+            if l.cerrada {
+                seccion(rotulo: "Comprado", articulos: enCarrito, tachado: true, lista: l)
+            } else if ajustes.agrupar && busca.isEmpty {
+                ForEach(porPasillo, id: \.categoria) { grupo in
+                    seccion(rotulo: grupo.categoria, articulos: grupo.articulos, tachado: false, lista: l)
                 }
+            } else {
+                seccion(rotulo: busca.isEmpty ? "Por comprar" : "Encontrado · \(faltan.count)",
+                        articulos: faltan, tachado: false, lista: l)
+            }
 
-                cabeceraTabla(rotulo: l.cerrada ? "Comprado" : "Por comprar")
-
-                ForEach(l.cerrada ? enCarrito : faltan) { a in
-                    fila(a, tachado: l.cerrada)
-                }
-
-                if !l.cerrada {
+            if !l.cerrada {
+                Section {
                     Button { agrega(a: l) } label: {
                         HStack(spacing: 12) {
                             IconoView(icono: .mas, tamano: 20)
@@ -111,75 +138,162 @@ struct EnTiendaView: View {
                             Spacer()
                         }
                         .foregroundStyle(tema.acento700)
-                        .padding(.horizontal, 16)
-                        .frame(minHeight: 52)
+                        .frame(minHeight: 48)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                }
+                .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
 
-                    if !enCarrito.isEmpty {
-                        Rotulo("En el carrito · \(enCarrito.count)")
-                            .padding(.horizontal, 16)
-                            .padding(.top, 16)
-                            .padding(.bottom, 6)
-                        ForEach(enCarrito) { a in fila(a, tachado: true) }
-                    }
+                if !enCarrito.isEmpty {
+                    seccion(rotulo: "En el carrito · \(enCarrito.count)", articulos: enCarrito,
+                            tachado: true, lista: l)
+                }
 
+                Section {
                     Button("Listo, cerrar compra · \(Formato.pesos(gastado, moneda: ajustes.moneda))") {
                         cerrando = true
                     }
                     .buttonStyle(BotonPrincipal())
-                    .padding(.horizontal, 16)
-                    .padding(.top, 20)
-                    .disabled(enCarrito.isEmpty)
+                    .disabled(articulos.filter(\.hecho).isEmpty)
+                    .padding(.top, 12)
+                    .padding(.bottom, 110)
                 }
+                .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+            } else {
+                Color.clear.frame(height: 110)
+                    .listRowSeparator(.hidden).listRowBackground(Color.clear)
             }
-            .padding(.bottom, 110)
         }
-        .scrollIndicators(.hidden)
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .environment(\.defaultMinListRowHeight, 1)
+        .scrollDismissesKeyboard(.immediately)
         .refreshable { await sincronizador?.sincroniza() }
+        .safeAreaInset(edge: .top, spacing: 0) { barraSuperior(l) }
     }
 
+    // MARK: - Arriba
+
     private func barraSuperior(_ l: Lista) -> some View {
-        HStack {
-            Button { pestana = .listas } label: {
-                HStack(spacing: 4) {
-                    IconoView(icono: .atras, tamano: 20)
-                    Text("Listas").font(tema.texto(15, .bold))
-                }
-                .foregroundStyle(tema.acento700)
-                .frame(minHeight: 44)
-            }
-            Spacer()
-            if !l.cerrada {
-                HStack(spacing: 8) {
-                    if sesion.hayIA {
-                        Button { asistente = true } label: { IconoView(icono: .chispa, tamano: 20) }
-                            .buttonStyle(BotonRedondo())
-                            .accessibilityLabel("Dictar o leer un recibo")
+        VStack(spacing: 8) {
+            HStack {
+                Button { pestana = .listas } label: {
+                    HStack(spacing: 4) {
+                        IconoView(icono: .atras, tamano: 20)
+                        Text("Listas").font(tema.texto(15, .bold))
                     }
-                    Button { columnasAbiertas = true } label: { IconoView(icono: .columnas, tamano: 20) }
-                        .buttonStyle(BotonRedondo())
-                        .accessibilityLabel("Columnas")
-                    Button { agrega(a: l) } label: { IconoView(icono: .mas, tamano: 20) }
-                        .buttonStyle(BotonRedondo(relleno: tema.acento, tinta: tema.sobreAcento))
-                        .accessibilityLabel("Agregar producto")
+                    .foregroundStyle(tema.acento700)
+                    .frame(minHeight: 44)
                 }
+                Spacer()
+                if !l.cerrada {
+                    HStack(spacing: 6) {
+                        Button {
+                            withAnimation(.snappy) { buscando.toggle() }
+                            if buscando { enLaBusqueda = true } else { busca = "" }
+                        } label: { IconoView(icono: .buscar, tamano: 20) }
+                            .buttonStyle(BotonRedondo(relleno: buscando ? tema.acento200 : nil))
+                            .accessibilityLabel("Buscar")
+
+                        Menu {
+                            Toggle(isOn: Binding(
+                                get: { ajustes.agrupar },
+                                set: { ajustes.agrupar = $0; ajustes.toco(); try? ctx.save() })) {
+                                Label("Agrupar por pasillo", systemImage: "list.bullet.indent")
+                            }
+                            Button { columnasAbiertas = true } label: {
+                                Label("Qué columnas ver", systemImage: "slider.horizontal.3")
+                            }
+                            if sesion.hayIA {
+                                Button { asistente = true } label: {
+                                    Label("Dictar o leer un recibo", systemImage: "sparkles")
+                                }
+                            }
+                            Divider()
+                            Button { compartiendo = true } label: {
+                                Label(compartida ? "Quién está en la lista" : "Compartir la lista",
+                                      systemImage: "person.2")
+                            }
+                        } label: {
+                            IconoView(icono: .columnas, tamano: 20).frame(width: 44, height: 44)
+                                .background(tema.superficie, in: Circle())
+                                .foregroundStyle(tema.texto)
+                        }
+                        .accessibilityLabel("Más")
+
+                        Button { agrega(a: l) } label: { IconoView(icono: .mas, tamano: 20) }
+                            .buttonStyle(BotonRedondo(relleno: tema.acento, tinta: tema.sobreAcento))
+                            .accessibilityLabel("Agregar producto")
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+
+            if buscando {
+                HStack(spacing: 8) {
+                    IconoView(icono: .buscar, tamano: 16).foregroundStyle(tema.neutral500)
+                    TextField("Buscar en la lista", text: $busca)
+                        .font(tema.texto(16))
+                        .focused($enLaBusqueda)
+                        .submitLabel(.search)
+                    if !busca.isEmpty {
+                        Button { busca = "" } label: {
+                            IconoView(icono: .equis, tamano: 15).foregroundStyle(tema.neutral500)
+                        }
+                    }
+                }
+                .padding(.horizontal, 16)
+                .frame(height: 44)
+                .background(tema.superficie, in: Capsule())
+                .padding(.horizontal, 16)
+                .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
-        .padding(.horizontal, 16)
+        .padding(.bottom, 8)
+        .background(tema.fondo)
     }
 
     private func titulo(_ l: Lista) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 4) {
             Text(l.nombre).font(tema.titulo(30)).foregroundStyle(tema.texto)
-            Text([l.tienda, "\(articulos.count) producto\(articulos.count == 1 ? "" : "s")"]
-                .filter { !$0.isEmpty }.joined(separator: " · "))
-                .font(tema.texto(14))
-                .foregroundStyle(tema.neutral700)
+            HStack(spacing: 8) {
+                Text([l.tienda, "\(articulos.count) producto\(articulos.count == 1 ? "" : "s")"]
+                    .filter { !$0.isEmpty }.joined(separator: " · "))
+                    .font(tema.texto(14))
+                    .foregroundStyle(tema.neutral700)
+                if compartida {
+                    Button { compartiendo = true } label: { avatares }
+                        .buttonStyle(.plain)
+                }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 20)
-        .padding(.top, 6)
+        .padding(.top, 2)
+    }
+
+    /// Quién más está en la lista, en pequeño. Tocarlo abre el panel.
+    private var avatares: some View {
+        HStack(spacing: -6) {
+            ForEach(miembros.prefix(3)) { m in
+                Text(m.inicial)
+                    .font(tema.texto(10, .heavy))
+                    .foregroundStyle(tema.acento2_800)
+                    .frame(width: 22, height: 22)
+                    .background(tema.acento2_200, in: Circle())
+                    .overlay(Circle().strokeBorder(tema.fondo, lineWidth: 1.5))
+            }
+            if miembros.count > 3 {
+                Text("+\(miembros.count - 3)")
+                    .font(tema.texto(10, .heavy))
+                    .foregroundStyle(tema.neutral700)
+                    .padding(.leading, 8)
+            }
+        }
     }
 
     private func tarjetaCarrito(_ l: Lista) -> some View {
@@ -201,6 +315,7 @@ struct EnTiendaView: View {
                 Text(Formato.pesos(gastado, moneda: ajustes.moneda))
                     .font(tema.titulo(34))
                     .foregroundStyle(tema.sobreOscuro)
+                    .contentTransition(.numericText())
                 if l.presupuesto > 0 {
                     Text("de \(Formato.pesos(l.presupuesto, moneda: ajustes.moneda))")
                         .font(tema.texto(13))
@@ -213,11 +328,11 @@ struct EnTiendaView: View {
                       pista: tema.neutral700.opacity(0.35), alto: 8)
             }
         }
+        .animation(.snappy, value: gastado)
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(tema.neutral900, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .padding(.horizontal, 16)
-        .padding(.top, 14)
+        .padding(.top, 10)
     }
 
     private func bannerCerrada(_ l: Lista) -> some View {
@@ -240,20 +355,37 @@ struct EnTiendaView: View {
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(tema.acento2_200, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .padding(.horizontal, 16)
-        .padding(.top, 14)
+        .padding(.top, 10)
     }
 
-    // MARK: - La tabla
+    // MARK: - Una sección de la lista
 
-    /// Los anchos son fijos y no proporcionales: así los números de todas las
-    /// filas quedan en la misma vertical y la columna se lee de un vistazo.
     private var anchos: (cantidad: CGFloat, precio: CGFloat, total: CGFloat) { (52, 50, 58) }
 
-    private func cabeceraTabla(rotulo: String) -> some View {
+    @ViewBuilder
+    private func seccion(rotulo: String, articulos listaArts: [Articulo], tachado: Bool, lista l: Lista) -> some View {
+        if !listaArts.isEmpty {
+            Section {
+                ForEach(listaArts) { a in fila(a, tachado: tachado) }
+                    .onMove { desde, hasta in mueve(listaArts, desde, hasta) }
+            } header: {
+                cabeceraSeccion(rotulo, listaArts, cerrada: l.cerrada)
+            }
+            .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+        }
+    }
+
+    private func cabeceraSeccion(_ rotulo: String, _ arts: [Articulo], cerrada: Bool) -> some View {
         HStack(spacing: 6) {
-            Color.clear.frame(width: 30)
-            Text(rotulo.uppercased()).frame(maxWidth: .infinity, alignment: .leading)
+            Text(rotulo.uppercased())
+                .font(tema.texto(11, .heavy)).tracking(0.8)
+                .foregroundStyle(tema.neutral700)
+            Text("\(arts.count)")
+                .font(tema.texto(11, .heavy))
+                .foregroundStyle(tema.neutral500)
+            Spacer()
             if ajustes.verCantidad { Text("CANT.").frame(width: anchos.cantidad, alignment: .trailing) }
             if ajustes.verPrecio { Text("PRECIO").frame(width: anchos.precio, alignment: .trailing) }
             if ajustes.verTotal { Text("TOTAL").frame(width: anchos.total, alignment: .trailing) }
@@ -261,9 +393,24 @@ struct EnTiendaView: View {
         .font(tema.texto(11, .heavy))
         .tracking(0.8)
         .foregroundStyle(tema.neutral700)
-        .padding(.horizontal, 16)
         .padding(.top, 14)
-        .padding(.bottom, 6)
+        .padding(.bottom, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(tema.fondo)
+        .contextMenu {
+            if !cerrada, !arts.allSatisfy(\.hecho) {
+                Button {
+                    for a in arts where !a.hecho { a.marca(true, quien: yo) }
+                    guarda()
+                } label: { Label("Poner todo en el carrito", systemImage: "checkmark.circle") }
+            }
+            if !cerrada, arts.contains(where: \.hecho) {
+                Button {
+                    for a in arts where a.hecho { a.marca(false, quien: yo) }
+                    guarda()
+                } label: { Label("Sacarlo todo del carrito", systemImage: "circle") }
+            }
+        }
     }
 
     private func fila(_ a: Articulo, tachado: Bool) -> some View {
@@ -271,9 +418,8 @@ struct EnTiendaView: View {
             HStack(spacing: 6) {
                 Button {
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    a.hecho.toggle()
-                    a.toco()
-                    try? ctx.save()
+                    withAnimation(.snappy(duration: 0.2)) { a.marca(!a.hecho, quien: yo) }
+                    guarda()
                 } label: {
                     Marcador(puesto: a.hecho)
                         .frame(width: 44, height: 44)
@@ -289,7 +435,14 @@ struct EnTiendaView: View {
                         .strikethrough(a.hecho)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
-                    if ajustes.verNota, !a.nota.isEmpty {
+                    // En una lista de dos, saber QUIÉN lo cogió es la mitad del
+                    // asunto: si no, ella ve la leche marcada y no sabe si fue él
+                    // o si la marcó sin querer.
+                    if compartida, a.hecho, !a.hechoPor.isEmpty {
+                        Text("lo cogió \(a.hechoPor)")
+                            .font(tema.texto(12, .semibold))
+                            .foregroundStyle(tema.acento2_700)
+                    } else if ajustes.verNota, !a.nota.isEmpty {
                         Text(a.nota).font(tema.texto(12)).foregroundStyle(tema.neutral700).lineLimit(1)
                     }
                 }
@@ -299,7 +452,7 @@ struct EnTiendaView: View {
                 if ajustes.verCantidad {
                     Text("\(Formato.cantidad(a.cantidad)) \(a.unidad)")
                         .font(tema.texto(14, .semibold))
-                        .foregroundStyle(a.hecho ? tema.neutral700 : tema.neutral700)
+                        .foregroundStyle(tema.neutral700)
                         .frame(width: anchos.cantidad, alignment: .trailing)
                 }
                 if ajustes.verPrecio {
@@ -315,26 +468,30 @@ struct EnTiendaView: View {
                 }
             }
             .foregroundStyle(a.hecho ? tema.neutral700 : tema.texto)
-            .padding(.horizontal, 16)
-            .frame(minHeight: 56)
+            .frame(minHeight: 52)
             .contentShape(Rectangle())
             .overlay(alignment: .bottom) {
-                Rectangle().fill(tema.divisor).frame(height: 1).padding(.leading, 16)
+                Rectangle().fill(tema.divisor).frame(height: 1).padding(.leading, 30)
             }
         }
         .buttonStyle(.plain)
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            Button(role: .destructive) {
-                a.entierro()
-                try? ctx.save()
-            } label: { Label("Quitar", systemImage: "trash") }
+            Button(role: .destructive) { quita(a) } label: { Label("Quitar", systemImage: "trash") }
+        }
+        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+            Button {
+                withAnimation(.snappy) { a.marca(!a.hecho, quien: yo) }
+                guarda()
+            } label: {
+                Label(a.hecho ? "Sacar" : "Al carrito", systemImage: a.hecho ? "circle" : "checkmark")
+            }
+            .tint(tema.acento2_700)
         }
     }
 
     private var sinLista: some View {
         VStack(spacing: 14) {
-            IconoView(icono: .bolsa, tamano: 44, grosor: 2)
-                .foregroundStyle(tema.neutral500)
+            IconoView(icono: .bolsa, tamano: 44, grosor: 2).foregroundStyle(tema.neutral500)
             Text("No hay ninguna compra abierta").font(tema.titulo(24)).foregroundStyle(tema.texto)
             Text("Crea una lista en la pestaña Listas y vuelve aquí cuando estés en la tienda.")
                 .font(tema.texto(15))
@@ -347,11 +504,50 @@ struct EnTiendaView: View {
         .padding(30)
     }
 
+    // MARK: - Lo que hace
+
+    private func guarda() {
+        try? ctx.save()
+        Task { await sincronizador?.sincroniza() }
+    }
+
     private func agrega(a l: Lista) {
         let nuevo = Articulo(listaId: l.id, unidad: ajustes.unidadPorDefecto,
                              orden: (articulos.map(\.orden).max() ?? 0) + 1)
         ctx.insert(nuevo)
         l.toco()
         abierto = nuevo
+    }
+
+    /// Quitar con posibilidad de arrepentirse. Un producto quitado sin querer en
+    /// medio del pasillo se nota cinco segundos después, no cinco minutos.
+    private func quita(_ a: Articulo) {
+        let nombre = a.nombre.isEmpty ? "el producto" : a.nombre
+        withAnimation(.snappy) { a.entierro() }
+        guarda()
+        sesion.avisa("Quitaste \(nombre)", .info, accion: "Deshacer") {
+            a.borrado = nil
+            a.toco()
+            guarda()
+        }
+    }
+
+    /// Reordenar dentro de un grupo. Se renumera solo ese grupo, dejando los
+    /// huecos que ya tenían los demás: tocar el orden de toda la lista para
+    /// mover un producto haría que se resincronizara entera.
+    private func mueve(_ grupo: [Articulo], _ desde: IndexSet, _ hasta: Int) {
+        var nuevos = grupo
+        nuevos.move(fromOffsets: desde, toOffset: hasta)
+        let base = grupo.map(\.orden).min() ?? 0
+        for (i, a) in nuevos.enumerated() where a.orden != base + i {
+            a.orden = base + i
+            a.toco()
+        }
+        guarda()
+    }
+
+    private func traeMiembros() async {
+        guard let id = lista?.id else { miembros = []; return }
+        miembros = (try? await Compartir.miembros(de: id)) ?? []
     }
 }

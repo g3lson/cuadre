@@ -356,6 +356,50 @@ app.get('/r/:id', async (req, res) => {
   res.end(buf);
 });
 
+/**
+ * LA PÁGINA DE UNA INVITACIÓN.
+ *
+ * El enlace se manda por WhatsApp, así que lo abre un navegador. Esta página
+ * intenta pasarle el testigo a la app y, si no está instalada, dice qué es
+ * Cuadre en dos líneas — que es lo que hace falta saber antes de instalar nada.
+ *
+ * No se dice de quién es la lista ni cómo se llama: cualquiera con el enlace ve
+ * esta página, y el nombre de una lista de la compra dice más de lo que parece.
+ */
+app.get('/invitacion/:codigo', (req, res) => {
+  const codigo = String(req.params.codigo || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40);
+  res.set('cache-control', 'no-store').type('html').send(`<!doctype html><html lang="es"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Te compartieron una lista · Cuadre</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/fuentes/fuentes.css">
+<link rel="stylesheet" href="/pagina.css">
+<style>
+  body{display:grid;place-items:center;min-height:100svh;text-align:center;padding:24px}
+  main{max-width:420px}
+  .punto{width:72px;height:72px;border-radius:50%;background:var(--barro);position:relative;margin:0 auto 22px}
+  .punto::after{content:"";position:absolute;right:-4px;bottom:-4px;width:30px;height:30px;border-radius:50%;background:var(--salvia);border:5px solid var(--bg)}
+  .btn{margin-top:10px}
+  .chico{font-size:13px;color:var(--tenue);margin-top:26px}
+</style></head><body><main>
+<div class="punto"></div>
+<h1>Te compartieron una lista</h1>
+<p class="entradilla">Ábrela en Cuadre y verás lo que marquen los demás al momento: si alguien coge la leche, no la buscas tú también.</p>
+<div class="botones" style="justify-content:center">
+  <a class="btn primario" id="abrir" href="cuadre://invitacion/${codigo}">Abrir en Cuadre</a>
+</div>
+<p class="chico">¿No tienes la app? Cuadre es para iPhone y está en pruebas.
+  Escribe a <a href="mailto:soporte@fente.com.do?subject=Invitaci%C3%B3n%20a%20Cuadre">soporte@fente.com.do</a> y te llega la invitación.</p>
+</main>
+<script>
+  // Se intenta abrir sola: quien viene de WhatsApp ya decidió al tocar el enlace.
+  // Si la app no está, no pasa nada y se queda la página.
+  setTimeout(function () { window.location = document.getElementById('abrir').href; }, 350);
+</script>
+</body></html>`);
+});
+
 /* ────────────────────────────── el sitio ────────────────────────────── */
 
 if (config.sitioDir && existsSync(config.sitioDir)) {

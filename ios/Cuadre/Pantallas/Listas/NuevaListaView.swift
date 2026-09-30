@@ -101,16 +101,13 @@ struct NuevaListaView: View {
                         }
                         if !pendientes.isEmpty {
                             opcion(.faltantes, titulo: "Traer los faltantes",
-                                   detalle: pendientes.prefix(3).map {
-                                       "\($0.nombre) · \(Formato.cantidad($0.cantidad)) \($0.unidad)"
-                                   }.joined(separator: " · "))
+                                   detalle: pendientes.prefix(3)
+                                       .map { "\($0.nombre) · \(Formato.cantidad($0.cantidad)) \($0.unidad)" }
+                                       .joined(separator: "  ·  ")
+                                       + (pendientes.count > 3 ? " y \(pendientes.count - 3) más" : ""))
                         }
                     }
 
-                    Button("Crear lista") { crea() }
-                        .buttonStyle(BotonPrincipal())
-                        .disabled(nombre.trimmingCharacters(in: .whitespaces).isEmpty)
-                        .padding(.top, 6)
                 }
                 .padding(.horizontal, 20)
                 .padding(.bottom, 40)
@@ -122,6 +119,11 @@ struct NuevaListaView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancelar") { cerrar() }.foregroundStyle(tema.acento700)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Crear") { crea() }
+                        .font(tema.texto(16, .bold))
+                        .disabled(nombre.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
         }
@@ -135,7 +137,8 @@ struct NuevaListaView: View {
             if presupuesto.isEmpty, let u = ultima, u.presupuesto > 0 {
                 presupuesto = String(Int(u.presupuesto))
             }
-            enElNombre = true
+            // El teclado NO se abre solo: tapa media pantalla antes de que a
+            // nadie le haya dado tiempo de ver qué hay debajo.
         }
     }
 

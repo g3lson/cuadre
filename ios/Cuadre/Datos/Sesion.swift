@@ -37,6 +37,13 @@ final class Sesion {
     private(set) var comprobando = true
     var avisos: [Aviso] = []
 
+    /// Sube cada vez que el servidor avisa de que una lista compartida cambió.
+    /// Las pantallas lo miran con `onChange` y sincronizan: así el aviso tiene
+    /// un solo camino y no hay dos maneras de quedar descuadrado.
+    private(set) var pulso = 0
+    private(set) var enVivo = false
+    private var escucha: Task<Void, Never>?
+
     var dentro: Bool { usuario != nil }
 
     private let claveTestigo = "sesion"
@@ -65,6 +72,7 @@ final class Sesion {
         }
         await refresca()
         comprobando = false
+        empiezaAEscuchar()
     }
 
     private struct RespuestaYo: Decodable {
@@ -135,6 +143,7 @@ final class Sesion {
         usuario = r.usuario
         guarda(r.usuario)
         await refresca()
+        empiezaAEscuchar()
     }
 
     func sal() async {
@@ -143,6 +152,7 @@ final class Sesion {
     }
 
     func olvida() async {
+        paraDeEscuchar()
         Llavero.borra(claveTestigo)
         UserDefaults.standard.removeObject(forKey: "usuario")
         UserDefaults.standard.removeObject(forKey: "sincronizadoHasta")
@@ -166,14 +176,86 @@ final class Sesion {
         await olvida()
     }
 
+    // MARK: - En vivo
+
+    /// UNA CONEXIÓN QUE NO SE CIERRA.
+    ///
+    /// El servidor avisa por ella de que una lista compartida cambió. No manda
+    /// los datos —manda «mira otra vez»— y el teléfono sincroniza por donde ya
+    /// sabe.
+    ///
+    /// Se reconecta sola con espera creciente. En un súper la señal va y viene
+    /// cada dos pasillos, y reintentar cada segundo con el bolsillo sin cobertura
+    /// solo gasta batería.
+    func empiezaAEscuchar() {
+        guard usuario != nil, escucha == nil else { return }
+        escucha = Task { [weak self] in
+            var espera: UInt64 = 1
+            while !Task.isCancelled {
+                let vivio = await self?.unaConexion() ?? false
+                if Task.isCancelled { return }
+                espera = vivio ? 1 : min(espera * 2, 60)
+                try? await Task.sleep(for: .seconds(Double(espera)))
+            }
+        }
+    }
+
+    func paraDeEscuchar() {
+        escucha?.cancel()
+        escucha = nil
+        enVivo = false
+    }
+
+    /// Una conexión, hasta que se caiga. Devuelve si llegó a estar viva, que es
+    /// lo que decide si el siguiente intento es inmediato o con espera.
+    private func unaConexion() async -> Bool {
+        guard let testigo = Llavero.lee(claveTestigo) else { return false }
+        var p = URLRequest(url: Api.base.appendingPathComponent("api/eventos"))
+        p.setValue("Bearer " + testigo, forHTTPHeaderField: "authorization")
+        p.setValue("text/event-stream", forHTTPHeaderField: "accept")
+        // Sin caducidad: es una conexión que tiene que durar horas.
+        p.timeoutInterval = .infinity
+
+        var llego = false
+        do {
+            let (bytes, respuesta) = try await URLSession.shared.bytes(for: p)
+            guard (respuesta as? HTTPURLResponse)?.statusCode == 200 else { return false }
+            enVivo = true
+            for try await linea in bytes.lines {
+                llego = true
+                if Task.isCancelled { break }
+                // Solo interesa QUE cambió algo; el qué lo trae la sincronización.
+                if linea.hasPrefix("event: cambio") || linea.hasPrefix("event: compartida") {
+                    pulso &+= 1
+                }
+            }
+        } catch {
+            // Se cayó: la reconecta el bucle de fuera.
+        }
+        enVivo = false
+        return llego
+    }
+
     // MARK: - Avisos
 
-    func avisa(_ texto: String, _ clase: Aviso.Clase = .info) {
-        let a = Aviso(texto: texto, clase: clase)
+    func avisa(_ texto: String, _ clase: Aviso.Clase = .info,
+               accion: String? = nil, alTocar: (() -> Void)? = nil) {
+        var a = Aviso(texto: texto, clase: clase, accion: accion)
+        let id = a.id
+        // El botón cierra el aviso además de hacer lo suyo: dejarlo puesto
+        // invita a tocarlo dos veces y a deshacer lo que ya se deshizo.
+        if let alTocar {
+            a.alTocar = { [weak self] in
+                alTocar()
+                withAnimation(.snappy) { self?.avisos.removeAll { $0.id == id } }
+            }
+        }
         withAnimation(.snappy) { avisos.append(a) }
         Task {
-            try? await Task.sleep(for: .seconds(clase == .mal ? 5 : 3))
-            withAnimation(.snappy) { avisos.removeAll { $0.id == a.id } }
+            // Con algo que deshacer, un poco más de tiempo: cinco segundos es lo
+            // que se tarda en darse cuenta de que uno se equivocó.
+            try? await Task.sleep(for: .seconds(accion != nil ? 6 : (clase == .mal ? 5 : 3)))
+            withAnimation(.snappy) { avisos.removeAll { $0.id == id } }
         }
     }
 }

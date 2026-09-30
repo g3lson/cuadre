@@ -17,6 +17,11 @@ struct Raiz: View {
     @State private var enTienda: String?
     /// Solo en modo demo: abrir Ajustes de una vez, para poder fotografiarla.
     @State private var demoAjustes = Demo.pestana == "ajustes"
+    @State private var invitacion: Invitacion?
+
+    /// El código de una invitación que llegó por enlace. Es un tipo y no un
+    /// `String?` porque `sheet(item:)` necesita algo identificable.
+    struct Invitacion: Identifiable { let id = UUID(); let codigo: String }
 
     @Query(filter: #Predicate<Ajustes> { $0.borrado == nil }) private var todosLosAjustes: [Ajustes]
 
@@ -61,9 +66,19 @@ struct Raiz: View {
             if nueva == .active { Task { await sincronizador?.sincroniza() } }
         }
         .onOpenURL { url in
-            // La vuelta de Chinola: `cuadre://chinola?ok=1`.
-            guard url.scheme == "cuadre", url.host == "chinola" else { return }
-            Task { await sesion.refresca() }
+            manda(url)
+        }
+        .onChange(of: sesion.pulso) { _, _ in
+            // Alguien tocó una lista compartida desde otro teléfono.
+            Task { await sincronizador?.sincroniza() }
+        }
+        .sheet(item: $invitacion) { inv in
+            InvitacionView(codigo: inv.codigo) { listaId in
+                enTienda = listaId
+                pestana = .tienda
+                Task { await sincronizador?.sincroniza() }
+            }
+            .hojaDeCuadre(tema)
         }
     }
 
@@ -88,7 +103,6 @@ struct Raiz: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             BarraDePestanas(activa: $pestana, conVentas: mostrarVentas)
-                .padding(.bottom, 8)
         }
         .onChange(of: mostrarVentas) { _, hay in
             if !hay, pestana == .ventas { pestana = .listas }
@@ -119,6 +133,24 @@ struct Portada: View {
             Text("cuadre").font(tema.titulo(34))
         }
         .foregroundStyle(tema.texto)
+    }
+}
+
+extension Raiz {
+    /// A dónde lleva cada enlace que abre la app.
+    ///
+    ///   · `cuadre://chinola?ok=1`           — la vuelta del permiso de Chinola.
+    ///   · `cuadre://invitacion/<codigo>`    — alguien compartió una lista.
+    ///   · `https://cuadre.fente.com.do/invitacion/<codigo>` — lo mismo, desde WhatsApp.
+    fileprivate func manda(_ url: URL) {
+        let trozos = url.pathComponents.filter { $0 != "/" }
+        if url.scheme == "cuadre", url.host == "chinola" {
+            Task { await sesion.refresca() }
+            return
+        }
+        if trozos.first == "invitacion" || url.host == "invitacion", let codigo = trozos.last, codigo != "invitacion" {
+            invitacion = Invitacion(codigo: codigo)
+        }
     }
 }
 

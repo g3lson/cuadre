@@ -197,7 +197,7 @@ struct FichaProductoView: View {
             detal = producto.precioDetal > 0 ? Formato.cantidad(producto.precioDetal) : ""
             mayor = producto.precioMayor > 0 ? Formato.cantidad(producto.precioMayor) : ""
             especial = producto.precioEspecial > 0 ? Formato.cantidad(producto.precioEspecial) : ""
-            if producto.nombre.isEmpty { enElNombre = true }
+            // Sin teclado automático, como en el resto de la app.
         }
     }
 

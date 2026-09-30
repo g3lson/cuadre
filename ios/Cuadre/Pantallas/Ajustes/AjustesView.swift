@@ -15,7 +15,7 @@ struct AjustesView: View {
     @State private var editandoNombre = false
     @State private var nombre = ""
     @State private var camino: [Destino] = {
-        for d in [Destino.catalogo, .tarifas, .chinola, .cuenta] where Demo.abre(String(describing: d)) {
+        for d in [Destino.catalogo, .tarifas, .chinola, .cuenta, .ia] where Demo.abre(String(describing: d)) {
             return [d]
         }
         return []
@@ -51,6 +51,7 @@ struct AjustesView: View {
                 case .tarifas: TarifasView(ajustes: ajustes)
                 case .chinola: ChinolaAjustesView()
                 case .cuenta: CuentaView()
+                case .ia: ModelosIAView(ajustes: ajustes)
                 }
             }
         }
@@ -63,7 +64,7 @@ struct AjustesView: View {
         }
     }
 
-    enum Destino: Hashable { case catalogo, tarifas, chinola, cuenta }
+    enum Destino: Hashable { case catalogo, tarifas, chinola, cuenta, ia }
 
     // MARK: - Trozos
 
@@ -130,7 +131,14 @@ struct AjustesView: View {
         Rotulo("Conexiones").padding(.top, 6)
         Grupo {
             NavigationLink(value: Destino.chinola) {
-                FilaAjuste(titulo: "Chinola", detalle: chinolaDetalle, ultima: true) {
+                FilaAjuste(titulo: "Chinola", detalle: chinolaDetalle) {
+                    IconoView(icono: .chevron, tamano: 16, grosor: 3).foregroundStyle(tema.neutral500)
+                }
+            }
+            .buttonStyle(.plain)
+
+            NavigationLink(value: Destino.ia) {
+                FilaAjuste(titulo: "La IA", detalle: detalleIA, ultima: true) {
                     IconoView(icono: .chevron, tamano: 16, grosor: 3).foregroundStyle(tema.neutral500)
                 }
             }
@@ -142,6 +150,14 @@ struct AjustesView: View {
         guard let c = sesion.chinola else { return "Sin conectar" }
         let donde = [c.cuenta.isEmpty ? nil : c.cuenta].compactMap { $0 }.joined()
         return donde.isEmpty ? "Conectada" : "Conectada · \(donde)"
+    }
+
+    private var detalleIA: String {
+        if !sesion.hayIA { return "Apagada en el servidor" }
+        if !ajustes.modeloIA.isEmpty { return ajustes.modeloIA }
+        return LectorDeRecibos.todoAquí
+            ? "En tu iPhone, y modelos gratuitos"
+            : "Modelos gratuitos"
     }
 
     @ViewBuilder

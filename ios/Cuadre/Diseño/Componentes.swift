@@ -276,6 +276,13 @@ struct Aviso: Identifiable, Equatable {
     let id = UUID()
     let texto: String
     var clase: Clase = .info
+    /// Lo que se puede deshacer, si se puede. Aparece como un botón al lado del
+    /// texto y desaparece con el aviso: deshacer algo de hace diez minutos no es
+    /// deshacer, es editar.
+    var accion: String?
+    var alTocar: (() -> Void)?
+
+    static func == (a: Aviso, b: Aviso) -> Bool { a.id == b.id }
 }
 
 struct AvisoView: View {
@@ -303,6 +310,13 @@ struct AvisoView: View {
                       tamano: 18, grosor: 3)
             Text(aviso.texto).font(tema.texto(14, .bold))
             Spacer(minLength: 0)
+            if let accion = aviso.accion, let alTocar = aviso.alTocar {
+                Button(accion, action: alTocar)
+                    .font(tema.texto(14, .heavy))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .background(tinta.opacity(0.12), in: Capsule())
+            }
         }
         .foregroundStyle(tinta)
         .padding(.horizontal, 16)

@@ -104,6 +104,15 @@ enum Almacen {
             case .quitar: return "quitado"
             }
         }
+
+        /// Para la columna de la derecha del resumen, donde no cabe una frase.
+        var corto: String {
+            switch self {
+            case .proxima: return "a la próxima"
+            case .otroSitio: return "a «Faltantes»"
+            case .quitar: return "quitado"
+            }
+        }
     }
 
     /// CERRAR LA COMPRA.
@@ -112,11 +121,27 @@ enum Almacen {
     /// tienda, o se va a una lista «Faltantes» para buscarlo en otro sitio, o se
     /// quita porque ya no hace falta. La lista se queda solo con lo que de
     /// verdad se compró, que es lo que tiene que cuadrar con lo que se pagó.
+    /// Lo que de verdad faltó: sin los que alguien empezó a escribir y dejó
+    /// vacíos. Un producto sin nombre y sin precio no es un producto, y meterlo
+    /// en el resumen produce líneas como «: pasó a la próxima compra».
+    @MainActor
+    static func faltaronDeVerdad(_ ctx: ModelContext, en lista: Lista) -> [Articulo] {
+        articulos(ctx, de: lista.id).filter {
+            !$0.hecho && !$0.nombre.trimmingCharacters(in: .whitespaces).isEmpty
+        }
+    }
+
     @MainActor
     static func cierra(_ ctx: ModelContext, lista: Lista, destinos: [String: Destino]) {
         let todos = articulos(ctx, de: lista.id)
-        let faltaron = todos.filter { !$0.hecho }
         let cuando = Date()
+
+        // Los que quedaron sin nombre se van con la compra: no hay nada que
+        // pasar a la próxima lista ni que buscar en otro sitio.
+        for vacio in todos where !vacio.hecho && vacio.nombre.trimmingCharacters(in: .whitespaces).isEmpty {
+            vacio.entierro(cuando)
+        }
+        let faltaron = todos.filter { !$0.hecho && !$0.nombre.trimmingCharacters(in: .whitespaces).isEmpty }
 
         let aOtroSitio = faltaron.filter { (destinos[$0.id] ?? .proxima) == .otroSitio }
         if !aOtroSitio.isEmpty {
@@ -142,7 +167,7 @@ enum Almacen {
         lista.cerradaEn = cuando
         lista.notaCierre = faltaron.isEmpty
             ? "Compraste todo"
-            : faltaron.map { "\($0.nombre): \((destinos[$0.id] ?? .proxima).hecho)" }.joined(separator: " · ")
+            : "Faltó " + faltaron.map(\.nombre).joined(separator: ", ")
         lista.toco(cuando)
     }
 
@@ -168,7 +193,11 @@ enum Almacen {
             sortBy: [SortDescriptor(\.cerradaEn, order: .reverse)])
         guard let cerradas = try? ctx.fetch(d) else { return [] }
         for l in cerradas where tienda.isEmpty || l.tienda == tienda {
-            let pendientes = articulos(ctx, de: l.id).filter { !$0.hecho }
+            // Sin los que se quedaron sin nombre: arrastrar una ficha vacía a la
+            // lista siguiente es arrastrar el error, no el producto.
+            let pendientes = articulos(ctx, de: l.id).filter {
+                !$0.hecho && !$0.nombre.trimmingCharacters(in: .whitespaces).isEmpty
+            }
             if !pendientes.isEmpty { return pendientes }
         }
         return []

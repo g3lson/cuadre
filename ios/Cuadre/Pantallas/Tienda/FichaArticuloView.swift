@@ -27,6 +27,10 @@ struct FichaArticuloView: View {
     @State private var derivado: Derivado = .total
     @State private var menuUnidad = false
     @State private var sugerencias: [String] = []
+    /// Si la persona la eligió a mano, no se vuelve a adivinar: corregir algo y
+    /// que se corrija solo otra vez al escribir una letra es lo más molesto que
+    /// puede hacer una app.
+    @State private var categoriaAMano = false
     @FocusState private var foco: Foco?
     /// El nombre es `Foco` y no `Campo` porque `Campo` ya es el campo de texto de
     /// la app: dos cosas con el mismo nombre en el mismo archivo es cómo se
@@ -47,6 +51,10 @@ struct FichaArticuloView: View {
                         .onChange(of: articulo.nombre) { _, nuevo in
                             articulo.toco()
                             sugerencias = Almacen.sugerencias(ctx, para: nuevo)
+                            if !categoriaAMano {
+                                let adivinada = Categoria.adivina(nuevo)
+                                if adivinada != articulo.categoria { articulo.categoria = adivinada }
+                            }
                         }
                         .onSubmit { foco = .cantidad }
 
@@ -80,6 +88,30 @@ struct FichaArticuloView: View {
                     Campo(marcador: "Nota (marca, tamaño, «bien fresco»…)", valor: $articulo.nota, tamano: 15)
                         .focused($foco, equals: .nota)
                         .onChange(of: articulo.nota) { _, _ in articulo.toco() }
+
+                    // El pasillo. Se adivina solo al escribir el nombre, así que
+                    // casi nunca hay que tocarlo; está para las veces que se
+                    // equivoca, que las hay.
+                    HStack(spacing: 10) {
+                        Text("Pasillo").font(tema.texto(15, .bold))
+                        Spacer()
+                        Menu {
+                            ForEach(Categoria.todas, id: \.self) { c in
+                                Button {
+                                    articulo.categoria = c
+                                    categoriaAMano = true
+                                    articulo.toco()
+                                } label: {
+                                    if articulo.categoria == c { Label(c, systemImage: "checkmark") } else { Text(c) }
+                                }
+                            }
+                        } label: {
+                            ValorYChevron(texto: articulo.categoria)
+                        }
+                    }
+                    .padding(.horizontal, 18)
+                    .frame(minHeight: 50)
+                    .background(tema.superficie, in: Capsule())
 
                     HStack(spacing: 10) {
                         Button("Quitar", role: .destructive) {
@@ -249,11 +281,18 @@ struct FichaArticuloView: View {
     private func num(_ t: String) -> Double { Double(limpia(t)) ?? 0 }
 
     private func carga() {
+        // Un producto que ya tiene categoría distinta de la que se adivinaría es
+        // que alguien la puso: no se toca.
+        categoriaAMano = !articulo.nombre.isEmpty
+            && articulo.categoria != Categoria.adivina(articulo.nombre)
+            && articulo.categoria != Categoria.porDefecto
         cantidad = Formato.cantidad(articulo.cantidad)
         precio = articulo.precio > 0 ? Formato.cantidad(articulo.precio) : ""
         total = articulo.precio > 0 ? Formato.cantidad(articulo.total) : ""
         derivado = .total
-        if articulo.nombre.isEmpty { foco = .nombre }
+        // Sin teclado automático: se abre cuando se toca el campo. En un
+        // producto nuevo tapa la unidad y los precios, que es justo lo que hay
+        // que ver antes de escribir.
     }
 
     private func cambióCantidad() {
@@ -300,6 +339,7 @@ struct FichaArticuloView: View {
     /// Reusar un nombre que ya se escribió trae su último precio y su unidad.
     private func usa(_ nombre: String) {
         articulo.nombre = nombre
+        if !categoriaAMano { articulo.categoria = Categoria.adivina(nombre) }
         if let (p, u) = Almacen.ultimoPrecio(ctx, de: nombre) {
             articulo.precio = p
             articulo.unidad = u

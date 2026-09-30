@@ -180,7 +180,6 @@ struct NuevoEncargoView: View {
         }
         .onAppear {
             producto = catalogo.first
-            enElCliente = true
         }
     }
 
