@@ -27,7 +27,7 @@ struct Raiz: View {
     var body: some View {
         ZStack {
             if sesion.comprobando {
-                Arranque()
+                Portada()
             } else if !sesion.dentro {
                 EntrarView()
             } else {
@@ -103,7 +103,7 @@ struct Raiz: View {
 /// La pantalla de medio segundo mientras se comprueba la sesión. Es la marca y
 /// nada más: un indicador de carga girando aquí solo consigue que medio segundo
 /// parezca dos.
-struct Arranque: View {
+struct Portada: View {
     @Environment(\.tema) private var tema
 
     var body: some View {

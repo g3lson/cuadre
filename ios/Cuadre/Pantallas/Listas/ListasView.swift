@@ -16,7 +16,7 @@ struct ListasView: View {
     @Binding var pestana: Pestana
 
     @Query(filter: #Predicate<Lista> { $0.borrado == nil },
-           sort: [SortDescriptor(\Lista.orden), SortDescriptor(\Lista.fecha, order: .reverse)])
+           sort: [SortDescriptor<Lista>(\.orden), SortDescriptor<Lista>(\.fecha, order: .reverse)])
     private var listas: [Lista]
 
     @State private var creando = false

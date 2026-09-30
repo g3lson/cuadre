@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UIKit
 
 /// 03 · EN TIENDA.
 ///
@@ -19,10 +20,10 @@ struct EnTiendaView: View {
     @Binding var pestana: Pestana
 
     @Query(filter: #Predicate<Lista> { $0.borrado == nil },
-           sort: [SortDescriptor(\Lista.orden), SortDescriptor(\Lista.fecha, order: .reverse)])
+           sort: [SortDescriptor<Lista>(\.orden), SortDescriptor<Lista>(\.fecha, order: .reverse)])
     private var listas: [Lista]
     @Query(filter: #Predicate<Articulo> { $0.borrado == nil },
-           sort: [SortDescriptor(\Articulo.orden), SortDescriptor(\Articulo.nombre)])
+           sort: [SortDescriptor<Articulo>(\.orden), SortDescriptor<Articulo>(\.nombre)])
     private var todos: [Articulo]
 
     @State private var abierto: Articulo?

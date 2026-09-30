@@ -158,11 +158,15 @@ enum ChinolaApi {
 // MARK: - Reportes
 
 enum Reportes {
+    static let casa = URL(string: "https://cuadre.fente.com.do")!
+
     struct Compartible: Decodable {
         let id: String
         let url: String
-        var web: URL { URL(string: url)! }
-        var pdf: URL { URL(string: url + ".pdf")! }
+        // Si el servidor devolviera una dirección rara, mejor mandar a la
+        // portada que caerse con un desenvuelto a la fuerza.
+        var web: URL { URL(string: url) ?? Reportes.casa }
+        var pdf: URL { URL(string: url + ".pdf") ?? Reportes.casa }
     }
 
     struct Producto: Encodable {

@@ -16,7 +16,7 @@ struct NuevaListaView: View {
     var alCrear: (Lista) -> Void
 
     @Query(filter: #Predicate<Lista> { $0.borrado == nil },
-           sort: [SortDescriptor(\Lista.fecha, order: .reverse)])
+           sort: [SortDescriptor<Lista>(\.fecha, order: .reverse)])
     private var listas: [Lista]
     @Query(filter: #Predicate<Tienda> { $0.borrado == nil }) private var tiendas: [Tienda]
 

@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UIKit
 
 /// 10 · VENTAS.
 ///
@@ -14,10 +15,10 @@ struct VentasView: View {
     @Environment(Sesion.self) private var sesion
 
     @Query(filter: #Predicate<Evento> { $0.borrado == nil },
-           sort: [SortDescriptor(\Evento.fecha, order: .reverse)])
+           sort: [SortDescriptor<Evento>(\.fecha, order: .reverse)])
     private var eventos: [Evento]
     @Query(filter: #Predicate<Encargo> { $0.borrado == nil },
-           sort: [SortDescriptor(\Encargo.actualizado)])
+           sort: [SortDescriptor<Encargo>(\.actualizado)])
     private var todos: [Encargo]
 
     @State private var nuevoEncargo = false

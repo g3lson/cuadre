@@ -92,7 +92,9 @@ actor Api {
     }()
 
     /// El nombre que el teléfono se da a sí mismo, para la lista de sesiones.
-    nonisolated static var dispositivo: String {
+    /// Va marcado al hilo principal porque `UIDevice` lo está.
+    @MainActor
+    static var dispositivo: String {
         UIDevice.current.name
     }
 

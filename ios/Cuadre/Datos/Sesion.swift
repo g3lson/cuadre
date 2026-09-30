@@ -130,7 +130,7 @@ final class Sesion {
     }
 
     func sal() async {
-        let _: Vacio? = try? await Api.shared.pide("api/yo/salir", metodo: "POST")
+        _ = try? await Api.shared.pide("api/yo/salir", metodo: "POST") as Vacio
         await olvida()
     }
 
