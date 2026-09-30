@@ -52,7 +52,9 @@ struct Raiz: View {
         }
         .onAppear {
             if sincronizador == nil { sincronizador = Sincronizador(contexto: ctx) }
+            tema.aplicaALaBarra()
         }
+        .onChange(of: tema.id) { _, _ in tema.aplicaALaBarra() }
         .onChange(of: fase) { _, nueva in
             // Al volver a la app se sincroniza: es cuando hay más probabilidad
             // de que otro dispositivo haya escrito algo.

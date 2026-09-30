@@ -42,6 +42,9 @@ struct BarraDePestanas: View {
     }
 
     var body: some View {
+        // La activa toma el ancho que pida su nombre y las demás se reparten lo
+        // que sobre. Con `maxWidth: .infinity` en las cuatro, «En tienda» se
+        // parte en dos líneas dentro de su pastilla.
         HStack(spacing: 4) {
             ForEach(pestanas) { p in
                 Button {
@@ -53,20 +56,25 @@ struct BarraDePestanas: View {
                     if activa == p {
                         HStack(spacing: 6) {
                             IconoView(icono: p.icono, tamano: 20)
-                            Text(p.etiqueta).font(tema.texto(14, .heavy))
+                            Text(p.etiqueta)
+                                .font(tema.texto(14, .heavy))
+                                .lineLimit(1)
+                                .fixedSize()
                         }
                         .foregroundStyle(tema.sobreAcento)
-                        .padding(.horizontal, 16)
+                        .padding(.horizontal, 15)
                         .padding(.vertical, 10)
                         .background(tema.acento, in: Capsule())
+                        .fixedSize()
                     } else {
                         IconoView(icono: p.icono, tamano: 22)
                             .foregroundStyle(tema.neutral500)
                             .padding(10)
+                            .frame(maxWidth: .infinity)
                     }
                 }
                 .buttonStyle(.plain)
-                .frame(maxWidth: .infinity)
+                .layoutPriority(activa == p ? 1 : 0)
                 .accessibilityLabel(p.etiqueta)
                 .accessibilityAddTraits(activa == p ? [.isSelected, .isButton] : .isButton)
             }

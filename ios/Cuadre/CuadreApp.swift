@@ -17,6 +17,11 @@ struct CuadreApp: App {
             // caerse aquí con el motivo que arrancar y fallar en cada pantalla.
             fatalError("No pude abrir la base local: \(error)")
         }
+
+        // Se siembra aquí y no en un `.task`: en un `.task` la primera pantalla
+        // ya se pintó vacía antes de que llegaran los datos, y la captura de la
+        // integración continua salía en blanco.
+        if Demo.encendido { Demo.siembra(contenedor.mainContext) }
     }
 
     var body: some Scene {
@@ -24,7 +29,6 @@ struct CuadreApp: App {
             Raiz()
                 .environment(sesion)
                 .task { await sesion.arranca() }
-                .task { if Demo.encendido { Demo.siembra(contenedor.mainContext) } }
         }
         .modelContainer(contenedor)
     }

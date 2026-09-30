@@ -156,7 +156,8 @@ struct VentasView: View {
                     }
                     Text("\(Formato.cantidad(o.cantidad)) \(o.unidad)")
                         .font(tema.texto(14, .heavy))
-                        .frame(minWidth: 62)
+                        .lineLimit(1)
+                        .frame(minWidth: 52)
                     Button { ajusta(o, 1) } label: {
                         Text("+").font(tema.texto(20, .bold)).frame(width: 36, height: 36)
                     }
@@ -176,6 +177,8 @@ struct VentasView: View {
                         } label: {
                             Text(ajustes.nombreTarifa(t))
                                 .font(tema.texto(12, .heavy))
+                                .lineLimit(1)
+                                .fixedSize()
                                 .padding(.horizontal, 9)
                                 .frame(height: 36)
                                 .background(o.tarifa == t.rawValue ? tema.neutral900 : .clear, in: Capsule())

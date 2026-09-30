@@ -76,20 +76,26 @@ jobs:
             --predicate 'processImagePath CONTAINS "Cuadre"' > registro-simulador.txt 2>&1 &
           LOGPID=$!
 
-          captura() {   # captura <nombre> <pestaña>
+          captura() {   # captura <nombre> <pestaña> [tema]
             xcrun simctl terminate "$UDID" "$APLICACION" 2>/dev/null || true
             sleep 1
-            xcrun simctl launch "$UDID" "$APLICACION" -demo -pestana "$2" >/dev/null || true
-            sleep 6
+            xcrun simctl launch "$UDID" "$APLICACION" -demo -pestana "$2" -tema "${3:-barro}" >/dev/null || true
+            sleep "${ESPERA:-6}"
             xcrun simctl io "$UDID" screenshot "captura-$1.png" || true
             echo "  · $1"
           }
 
-          captura 01-listas listas
+          # La primera arranca con la base vacía y hay que crearla: más margen.
+          ESPERA=10 captura 01-listas listas
           captura 02-en-tienda tienda
           captura 03-ventas ventas
           captura 04-el-cuadre cuadre
           captura 05-ajustes ajustes
+
+          # Los otros dos temas, para ver que el cambio es solo de tokens.
+          captura 06-mercado tienda mercado
+          captura 07-noche tienda noche
+          captura 08-noche-cuadre cuadre noche
 
           # Y la de entrar, que es la primera que ve alguien nuevo.
           xcrun simctl terminate "$UDID" "$APLICACION" 2>/dev/null || true

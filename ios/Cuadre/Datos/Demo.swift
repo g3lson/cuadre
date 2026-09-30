@@ -23,6 +23,14 @@ enum Demo {
         return args[i + 1]
     }
 
+    /// Con qué tema arrancar: `-tema noche`. Sirve para fotografiar los tres
+    /// sin tocar Ajustes.
+    static var tema: String? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: "-tema"), i + 1 < args.count else { return nil }
+        return args[i + 1]
+    }
+
     /// El identificador de la persona de mentira. Fijo, para que al reabrir la
     /// app en el simulador se encuentre lo que ya había en vez de duplicarlo.
     static let usuarioId = "demo"
@@ -34,11 +42,15 @@ enum Demo {
 
     @MainActor
     static func siembra(_ ctx: ModelContext) {
-        // Si ya hay algo, no se siembra otra vez.
+        let ajustes = Almacen.ajustes(ctx, de: usuarioId)
+        // El tema sí se pisa en cada arranque: es lo que permite fotografiar los
+        // tres seguidos sin borrar la app entre medias.
+        if let t = tema, Tema.Clave(rawValue: t) != nil { ajustes.tema = t }
+
+        // Lo demás solo se siembra una vez.
         let hay = ((try? ctx.fetch(FetchDescriptor<Lista>())) ?? []).contains(where: \.vivo)
         guard !hay else { return }
 
-        let ajustes = Almacen.ajustes(ctx, de: usuarioId)
         ajustes.modoVendedor = true
         ajustes.nombreNegocio = "Compras y ventas · Santo Domingo"
 

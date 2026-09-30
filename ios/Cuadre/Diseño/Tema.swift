@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// EL TEMA.
 ///
@@ -165,6 +166,31 @@ struct Tema: Equatable, Identifiable {
     /// claro, así que encima va tinta oscura y no el fondo de la pantalla.
     var sobreAcento: Color { oscuro ? neutral900 : fondo }
     var sobreOscuro: Color { oscuro ? texto : neutral100 }
+}
+
+// MARK: - La barra de navegación
+
+extension Tema {
+    /// SwiftUI no deja poner la tipografía del título de navegación, así que se
+    /// le dice a UIKit. Es lo único de UIKit que queda en la app, y está aquí
+    /// porque es exactamente donde se decide la tipografía.
+    ///
+    /// Se aplica al cambiar de tema y al arrancar: es global, no por pantalla.
+    func aplicaALaBarra() {
+        let a = UINavigationBarAppearance()
+        a.configureWithTransparentBackground()
+        a.backgroundColor = UIColor(fondo)
+        let tinta = UIColor(texto)
+        if let grande = UIFont(name: fuenteTituloGrueso, size: 34) {
+            a.largeTitleTextAttributes = [.font: grande, .foregroundColor: tinta]
+        }
+        if let chico = UIFont(name: fuenteTexto.negrita, size: 17) {
+            a.titleTextAttributes = [.font: chico, .foregroundColor: tinta]
+        }
+        UINavigationBar.appearance().standardAppearance = a
+        UINavigationBar.appearance().scrollEdgeAppearance = a
+        UINavigationBar.appearance().compactAppearance = a
+    }
 }
 
 // MARK: - Color desde hexadecimal

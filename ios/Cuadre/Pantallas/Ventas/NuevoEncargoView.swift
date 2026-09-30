@@ -134,6 +134,8 @@ struct NuevoEncargoView: View {
                                 Button { tarifa = t } label: {
                                     Text(ajustes.nombreTarifa(t))
                                         .font(tema.texto(12, .heavy))
+                                        .lineLimit(1)
+                                        .fixedSize()
                                         .padding(.horizontal, 10)
                                         .frame(height: 38)
                                         .background(tarifa == t ? tema.neutral900 : .clear, in: Capsule())
