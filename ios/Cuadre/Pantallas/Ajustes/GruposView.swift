@@ -19,6 +19,7 @@ struct GruposView: View {
     private var grupos: [Grupo]
 
     @State private var creando = false
+    @State private var abierto: Grupo?
     @State private var nombreNuevo = ""
     @State private var cuantos: [String: Int] = [:]
 
@@ -40,7 +41,7 @@ struct GruposView: View {
                 }
 
                 ForEach(grupos) { g in
-                    NavigationLink { NegocioView(grupo: g) } label: {
+                    Button { abierto = g } label: {
                         HStack(spacing: 14) {
                             LogoDelNegocio(grupo: g, lado: 46)
                             VStack(alignment: .leading, spacing: 2) {
@@ -86,7 +87,11 @@ struct GruposView: View {
         } message: {
             Text("Por ejemplo «Pescadería», «La casa» o el nombre de tu socio.")
         }
+        .navigationDestination(item: $abierto) { NegocioView(grupo: $0) }
         .task { await cuenta() }
+        .onAppear {
+            if Demo.abre("negocio"), abierto == nil { abierto = grupos.first }
+        }
     }
 
     private func detalle(_ g: Grupo) -> String {

@@ -22,7 +22,7 @@ struct VentasView: View {
     private var todos: [Encargo]
 
     @State private var nuevoEncargo = Demo.abre("encargo")
-    @State private var nuevoEvento = false
+    @State private var nuevoEvento = Demo.abre("evento")
     @State private var comprobante: Encargo?
     @State private var aBorrar: Evento?
     @State private var abierto: Encargo?
@@ -86,6 +86,9 @@ struct VentasView: View {
             .fondoDelTema(tema)
             .onAppear {
                 if Demo.abre("comprobante"), comprobante == nil { comprobante = cobrados.first }
+                if Demo.abre("confirmar"), porConfirmar == nil, let o = pendientes.first {
+                    porConfirmar = PorCobrar(encargo: o, metodo: "Efectivo")
+                }
             }
             .task(id: evento?.id) {
                 if let evento { await cargaCompaneros(evento) }

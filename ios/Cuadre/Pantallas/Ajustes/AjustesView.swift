@@ -15,7 +15,8 @@ struct AjustesView: View {
     @State private var editandoNombre = false
     @State private var nombre = ""
     @State private var camino: [Destino] = {
-        for d in [Destino.catalogo, .tarifas, .chinola, .cuenta, .ia] where Demo.abre(String(describing: d)) {
+        for d in [Destino.catalogo, .tarifas, .chinola, .cuenta, .ia, .grupos, .pasillos]
+            where Demo.abre(String(describing: d)) {
             return [d]
         }
         return []

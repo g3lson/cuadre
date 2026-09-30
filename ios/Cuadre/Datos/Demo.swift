@@ -63,6 +63,13 @@ enum Demo {
         ajustes.modoVendedor = true
         ajustes.nombreNegocio = "Compras y ventas · Santo Domingo"
 
+        // ── Los negocios. Dos, porque el caso que importa es tener dos y saber
+        //    en cuál se está despachando sin tener que acordarse.
+        let muelle = Grupo(nombre: "Pescadería El Muelle", color: 1)
+        let casa = Grupo(nombre: "La casa", color: 3)
+        ctx.insert(muelle)
+        ctx.insert(casa)
+
         for nombre in ["Supermercado Bravo", "Ferretería Americana", "Mercado de Villa Consuelo"] {
             ctx.insert(Tienda(nombre: nombre))
         }
@@ -70,6 +77,7 @@ enum Demo {
         // ── La compra a medias, que es lo que se ve al abrir ──
         let semanal = Lista(nombre: "Supermercado Semanal", tienda: "Supermercado Bravo",
                             presupuesto: 6500, fecha: .now, color: 0, orden: -3)
+        semanal.grupoId = casa.id
         ctx.insert(semanal)
         let productos: [(String, String, Double, Double, Bool, String, String)] = [
             ("Leche entera", "gal", 2, 245, true, "Rica, la azul", "Lácteos y huevos"),
@@ -128,7 +136,16 @@ enum Demo {
 
         // ── El día de venta, a medio despachar ──
         let venta = Evento(titulo: "Pescado del viernes", fecha: .now)
+        venta.grupoId = muelle.id
+        venta.negocio = muelle.nombre
         ctx.insert(venta)
+
+        // Y otra abierta de otro día, que es lo que hace visible el selector.
+        let sabado = Evento(titulo: "Pollo del sábado",
+                            fecha: .now.addingTimeInterval(86400))
+        sabado.grupoId = muelle.id
+        sabado.negocio = muelle.nombre
+        ctx.insert(sabado)
         let encargos: [(String, String, String, Double, Tarifa, String, String, String)] = [
             ("Juan Pérez", "+1 (809) 555-0110", "Chillo entero", 5.2, .detal, "cobrado", "Efectivo", ""),
             ("María Gómez", "", "Chillo entero", 7, .mayor, "cobrado", "Transferencia", ""),
@@ -146,6 +163,7 @@ enum Demo {
             o.estado = e.5
             o.metodo = e.6
             o.nota = e.7
+            o.registradoPor = i % 3 == 1 ? "Carlos" : "Gelson"
             if e.5 == "cobrado" {
                 o.cobradoEn = Calendar.current.date(byAdding: .minute, value: -(120 - i * 25), to: .now)
             }

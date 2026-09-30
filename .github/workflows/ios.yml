@@ -173,6 +173,10 @@ jobs:
           captura 13-catalogo ajustes catalogo
           captura 14-chinola ajustes chinola
           captura 15-tu-cuenta ajustes cuenta
+          captura 16-negocios ajustes grupos
+          captura 17-el-negocio ajustes negocio
+          captura 18-confirmar-cobro ventas confirmar
+          captura 19-nueva-venta ventas evento
 
           # Los otros dos temas, para ver que el cambio es solo de tokens.
           captura 20-mercado tienda nada mercado
