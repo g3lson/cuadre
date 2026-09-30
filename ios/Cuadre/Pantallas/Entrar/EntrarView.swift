@@ -19,9 +19,14 @@ struct EntrarView: View {
     @FocusState private var foco: Paso?
 
     var body: some View {
+        // El contenido va centrado, pero dentro de una vista con desplazamiento:
+        // cuando sube el teclado o el texto está en grande, tiene que poder
+        // subir en vez de recortarse. `minHeight` con la altura de la pantalla
+        // es lo que hace que los `Spacer` de dentro empujen de verdad.
+        GeometryReader { pantalla in
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                Spacer(minLength: 40)
+                Spacer(minLength: 24)
 
                 HStack(spacing: 14) {
                     Marca(tamano: 58)
@@ -61,7 +66,8 @@ struct EntrarView: View {
                     .padding(.top, 20)
             }
             .padding(.horizontal, 24)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: pantalla.size.height, alignment: .leading)
+        }
         }
         .scrollDismissesKeyboard(.interactively)
         .animation(.snappy(duration: 0.25), value: paso)

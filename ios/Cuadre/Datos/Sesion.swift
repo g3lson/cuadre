@@ -44,6 +44,14 @@ final class Sesion {
     // MARK: - Arranque
 
     func arranca() async {
+        // El modo demo entra sin servidor y sin testigo: como no hay testigo, el
+        // sincronizador ni lo intenta, y lo de mentira no puede subir a ningún lado.
+        if Demo.encendido {
+            usuario = Demo.usuario()
+            hayIA = true
+            comprobando = false
+            return
+        }
         guard let t = Llavero.lee(claveTestigo) else {
             comprobando = false
             return

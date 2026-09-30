@@ -261,16 +261,29 @@ struct IconoView: View {
 }
 
 /// La marca: el círculo con el check y el punto de la otra mitad.
+///
+/// El check solo se dibuja cuando hay sitio. En la cabecera, a 34 puntos, el
+/// diseño lo quita a propósito: a ese tamaño el trazo se convierte en una mancha
+/// y el círculo limpio se reconoce mejor.
 struct Marca: View {
     @Environment(\.tema) private var tema
     var tamano: CGFloat = 34
+    var conCheck: Bool?
+
+    private var dibujaCheck: Bool { conCheck ?? (tamano >= 44) }
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
-            Circle()
-                .fill(tema.acento)
-                .frame(width: tamano * 0.88, height: tamano * 0.88)
-                .frame(width: tamano, height: tamano, alignment: .topLeading)
+            ZStack {
+                Circle().fill(tema.acento)
+                if dibujaCheck {
+                    IconoView(icono: .check, tamano: tamano * 0.44, grosor: 3.2)
+                        .foregroundStyle(tema.oscuro ? tema.neutral900 : tema.fondo)
+                }
+            }
+            .frame(width: tamano * 0.88, height: tamano * 0.88)
+            .frame(width: tamano, height: tamano, alignment: .topLeading)
+
             Circle()
                 .fill(tema.acento2)
                 .frame(width: tamano * 0.38, height: tamano * 0.38)

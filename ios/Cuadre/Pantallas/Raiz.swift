@@ -10,11 +10,13 @@ struct Raiz: View {
     @Environment(\.modelContext) private var ctx
     @Environment(\.scenePhase) private var fase
 
-    @State private var pestana: Pestana = .listas
+    @State private var pestana: Pestana = Pestana(rawValue: Demo.pestana ?? "") ?? .listas
     @State private var sincronizador: Sincronizador?
     /// La lista que se está comprando ahora. Es lo que enseña la pestaña «En
     /// tienda»: sin ella, esa pestaña no tiene de qué hablar.
     @State private var enTienda: String?
+    /// Solo en modo demo: abrir Ajustes de una vez, para poder fotografiarla.
+    @State private var demoAjustes = Demo.pestana == "ajustes"
 
     @Query(filter: #Predicate<Ajustes> { $0.borrado == nil }) private var todosLosAjustes: [Ajustes]
 
@@ -88,6 +90,9 @@ struct Raiz: View {
         }
         .onChange(of: mostrarVentas) { _, hay in
             if !hay, pestana == .ventas { pestana = .listas }
+        }
+        .sheet(isPresented: $demoAjustes) {
+            AjustesView().hojaDeCuadre(tema)
         }
     }
 

@@ -24,6 +24,7 @@ struct CuadreApp: App {
             Raiz()
                 .environment(sesion)
                 .task { await sesion.arranca() }
+                .task { if Demo.encendido { Demo.siembra(contenedor.mainContext) } }
         }
         .modelContainer(contenedor)
     }

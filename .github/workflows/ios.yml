@@ -64,23 +64,44 @@ jobs:
           xcrun simctl bootstatus "$UDID" -b || true
           xcrun simctl install "$UDID" "$APP"
 
-      - name: Lanzar y capturar
+      - name: Lanzar y capturar cada pestaña
+        # La app arranca con `-demo`: entra sin servidor y se siembra con un día
+        # de trabajo. Sin eso, lo único que se puede fotografiar es la pantalla
+        # de entrar, que es justo la que menos dice.
         run: |
           set -e
-          # El registro del sistema filtrado a la app, para cazar un fallo que no
-          # se vea en la captura.
+          APLICACION=do.com.fente.cuadre
+
           xcrun simctl spawn "$UDID" log stream --level debug --style compact \
             --predicate 'processImagePath CONTAINS "Cuadre"' > registro-simulador.txt 2>&1 &
           LOGPID=$!
 
-          xcrun simctl launch "$UDID" do.com.fente.cuadre || true
-          sleep 5;  xcrun simctl io "$UDID" screenshot captura-01-arranque.png || true
-          sleep 5;  xcrun simctl io "$UDID" screenshot captura-02-entrar.png || true
-          sleep 6;  xcrun simctl io "$UDID" screenshot captura-03.png || true
+          captura() {   # captura <nombre> <pestaña>
+            xcrun simctl terminate "$UDID" "$APLICACION" 2>/dev/null || true
+            sleep 1
+            xcrun simctl launch "$UDID" "$APLICACION" -demo -pestana "$2" >/dev/null || true
+            sleep 6
+            xcrun simctl io "$UDID" screenshot "captura-$1.png" || true
+            echo "  · $1"
+          }
+
+          captura 01-listas listas
+          captura 02-en-tienda tienda
+          captura 03-ventas ventas
+          captura 04-el-cuadre cuadre
+          captura 05-ajustes ajustes
+
+          # Y la de entrar, que es la primera que ve alguien nuevo.
+          xcrun simctl terminate "$UDID" "$APLICACION" 2>/dev/null || true
+          xcrun simctl uninstall "$UDID" "$APLICACION" || true
+          xcrun simctl install "$UDID" "$APP"
+          xcrun simctl launch "$UDID" "$APLICACION" >/dev/null || true
+          sleep 6
+          xcrun simctl io "$UDID" screenshot "captura-00-entrar.png" || true
 
           kill $LOGPID 2>/dev/null || true
-          echo "── primeras líneas del registro ──"
-          head -c 8000 registro-simulador.txt || true
+          echo "── errores en el registro, si los hubo ──"
+          grep -iE "fault|crash|exception|error" registro-simulador.txt | head -20 || echo "(ninguno)"
 
       - name: Subir capturas y registros
         if: always()
