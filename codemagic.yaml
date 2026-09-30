@@ -33,6 +33,9 @@ workflows:
         - apple
       vars:
         BUNDLE_ID: "do.com.fente.cuadre"
+        # La extensión del widget y de la actividad en vivo. Firma aparte: es
+        # otro paquete dentro del .app y lleva su propio perfil.
+        BUNDLE_ID_WIDGET: "do.com.fente.cuadre.CuadreWidgets"
         XCODE_PROJECT: "ios/Cuadre.xcodeproj"
         XCODE_SCHEME: "Cuadre"
         APPLE_TEAM_ID: "B375R2BWX8"
@@ -101,62 +104,43 @@ workflows:
       - name: Traer los perfiles y certificados de firma
         # El orden importa: primero el llavero, luego se bajan los archivos y
         # solo entonces se meten los certificados. `--create` crea el App ID, el
-        # perfil y el certificado de Cuadre, que aún no existen.
+        # perfil y el certificado que aún no existan.
         #
-        # A `use-profiles` hay que decirle qué proyecto tocar: si no, busca por
-        # su cuenta y puede no dar con el nuestro, y entonces el proyecto se
-        # queda sin perfil y el archivado falla con «App requires a provisioning
-        # profile».
+        # Son DOS paquetes: la app y la extensión del widget. Cada uno lleva su
+        # propio perfil, y ponerle a la extensión el perfil de la app falla con
+        # «provisioning profile doesn't match the bundle identifier».
         script: |
           set -e
           keychain initialize
 
           # Los perfiles se vuelven inválidos cuando se toca una capacidad del
-          # App ID (activar Sign in with Apple, por ejemplo). Se borran los que
-          # haya en la máquina antes de bajar, para no archivar con uno viejo
-          # que ya no lleva el permiso: ese fallo sale como «doesn't match the
-          # entitlements» y cuesta media hora entenderlo.
+          # App ID (activar Sign in with Apple o App Groups, por ejemplo). Se
+          # borran los que haya en la máquina antes de bajar, para no archivar
+          # con uno viejo que ya no lleva el permiso: ese fallo sale como
+          # «doesn't match the entitlements» y cuesta media hora entenderlo.
           rm -f "$HOME/Library/MobileDevice/Provisioning Profiles"/*.mobileprovision 2>/dev/null || true
           rm -f "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"/*.mobileprovision 2>/dev/null || true
 
           app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create
+          app-store-connect fetch-signing-files "$BUNDLE_ID_WIDGET" --type IOS_APP_STORE --create
           keychain add-certificates
           xcode-project use-profiles --project "$XCODE_PROJECT" || true
 
-          # EL NOMBRE DEL PERFIL, A MANO.
+          # EL NOMBRE DE CADA PERFIL, A MANO, DENTRO DEL PROYECTO.
           #
-          # `use-profiles` mete el perfil dentro del project.pbxproj con su propio
+          # `use-profiles` mete el perfil en el project.pbxproj con su propio
           # analizador. Este proyecto está en el formato nuevo de Xcode 16+
           # (carpetas sincronizadas, objectVersion 77), que ese analizador puede
-          # no entender: entonces no inyecta nada, no avisa, y el archivado se cae
-          # después con «requires a provisioning profile». Leerlo del propio
-          # archivo descargado y pasárselo a xcodebuild quita esa dependencia.
-          PERFIL=""
-          for p in "$HOME/Library/MobileDevice/Provisioning Profiles"/*.mobileprovision \
-                   "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"/*.mobileprovision; do
-            [ -f "$p" ] || continue
-            APP_ID=$(security cms -D -i "$p" 2>/dev/null \
-              | plutil -extract Entitlements.application-identifier raw -o - - 2>/dev/null || true)
-            case "$APP_ID" in
-              *".$BUNDLE_ID") PERFIL=$(security cms -D -i "$p" 2>/dev/null | plutil -extract Name raw -o - - || true) ;;
-            esac
-          done
-          if [ -z "$PERFIL" ]; then
-            echo "No encontré un perfil para $BUNDLE_ID entre los descargados."
-            exit 1
-          fi
-          echo "PERFIL=$PERFIL" >> $CM_ENV
-          echo "Perfil: $PERFIL"
-
-          PERFILES=$(ls "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"/*.mobileprovision \
-                        "$HOME/Library/MobileDevice/Provisioning Profiles"/*.mobileprovision 2>/dev/null | wc -l)
-          if [ "$PERFILES" -eq 0 ]; then
-            echo "No se descargó ningún perfil de aprovisionamiento para $BUNDLE_ID."
-            echo "Revisa que el App ID esté registrado en el portal de Apple y que"
-            echo "tenga activada la capacidad Sign in with Apple."
-            exit 1
-          fi
-          echo "$PERFILES perfil(es) listos."
+          # no entender: entonces no inyecta nada, no avisa, y el archivado se
+          # cae después con «requires a provisioning profile».
+          #
+          # Antes se salvaba pasándole el perfil a xcodebuild por la línea de
+          # órdenes, pero eso pone EL MISMO para todos los objetivos, y con una
+          # extensión de por medio eso ya no vale: cada paquete lleva el suyo.
+          # Así que se escriben en el proyecto, uno por objetivo.
+          python3 scripts/firma.py \
+            "$XCODE_PROJECT/project.pbxproj" \
+            "$BUNDLE_ID" "$BUNDLE_ID_WIDGET"
 
       - name: Qué firma quedó puesta
         # Si el archivado falla, esto dice si el perfil llegó o no.
@@ -197,7 +181,7 @@ workflows:
           xcode-project build-ipa \
             --project "$XCODE_PROJECT" \
             --scheme "$XCODE_SCHEME" \
-            --archive-xcargs="COMPILER_INDEX_STORE_ENABLE=NO DEVELOPMENT_TEAM=$APPLE_TEAM_ID CODE_SIGN_STYLE=Manual 'CODE_SIGN_IDENTITY=Apple Distribution' 'PROVISIONING_PROFILE_SPECIFIER=$PERFIL'"
+            --archive-xcargs="COMPILER_INDEX_STORE_ENABLE=NO DEVELOPMENT_TEAM=$APPLE_TEAM_ID CODE_SIGN_STYLE=Manual 'CODE_SIGN_IDENTITY=Apple Distribution'"
           ESTADO=$?
           if [ $ESTADO -ne 0 ]; then
             echo

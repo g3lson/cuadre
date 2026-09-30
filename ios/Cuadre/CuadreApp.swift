@@ -3,6 +3,7 @@ import SwiftData
 
 @main
 struct CuadreApp: App {
+    @Environment(\.scenePhase) private var fase
     @State private var sesion = Sesion()
     private let contenedor: ModelContainer
 
@@ -37,5 +38,11 @@ struct CuadreApp: App {
                 .task { await sesion.arranca() }
         }
         .modelContainer(contenedor)
+        // Al salir de la app es cuando se mira el widget. Republicar aquí es
+        // lo que hace que lo que se acaba de marcar esté puesto al soltar el
+        // teléfono, sin esperar a la siguiente sincronización.
+        .onChange(of: fase) { _, nueva in
+            if nueva != .active { Escaparate.actualiza(contenedor.mainContext) }
+        }
     }
 }

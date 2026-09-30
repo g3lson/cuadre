@@ -61,6 +61,10 @@ final class Sincronizador {
             try contexto.save()
             ultima = .now
             estado = .quieto
+            // Lo que se ve desde fuera de la app: el widget y la actividad en
+            // vivo. Aquí, porque una sincronización puede traer lo que marcó
+            // otra persona y el widget tiene que enterarse igual.
+            Escaparate.actualiza(contexto)
         } catch is CancellationError {
             estado = .quieto
         } catch let e as Api.Fallo {
