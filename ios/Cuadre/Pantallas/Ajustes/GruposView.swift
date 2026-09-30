@@ -20,8 +20,6 @@ struct GruposView: View {
 
     @State private var creando = false
     @State private var nombreNuevo = ""
-    @State private var abierto: Grupo?
-    @State private var miembros: [Compartir.Miembro] = []
     @State private var cuantos: [String: Int] = [:]
 
     var body: some View {
@@ -42,15 +40,9 @@ struct GruposView: View {
                 }
 
                 ForEach(grupos) { g in
-                    Button { abierto = g } label: {
+                    NavigationLink { NegocioView(grupo: g) } label: {
                         HStack(spacing: 14) {
-                            ZStack {
-                                Circle().fill(ColorLista.color(g.color, tema).opacity(0.3))
-                                Text(Formato.inicial(g.nombre))
-                                    .font(tema.texto(16, .heavy))
-                                    .foregroundStyle(tema.texto)
-                            }
-                            .frame(width: 46, height: 46)
+                            LogoDelNegocio(grupo: g, lado: 46)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(g.nombre).font(tema.texto(16, .bold))
                                 Text(detalle(g)).font(tema.texto(13)).foregroundStyle(tema.neutral700)
@@ -93,9 +85,6 @@ struct GruposView: View {
             Button("Cancelar", role: .cancel) {}
         } message: {
             Text("Por ejemplo «Pescadería», «La casa» o el nombre de tu socio.")
-        }
-        .sheet(item: $abierto) { g in
-            CompartirListaView(grupo: g, miembros: $miembros).hojaDeCuadre(tema)
         }
         .task { await cuenta() }
     }

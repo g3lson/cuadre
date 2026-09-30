@@ -228,6 +228,9 @@ enum Reportes {
         let fecha: String
         let vendido: Double, costo: Double, comprado: Double, porCobrar: Double
         var regalado: Double = 0
+        /// A nombre de qué negocio se despachó el día. Corona el reporte: es
+        /// el papel que se le enseña a un socio o a un cliente.
+        var negocio: String = ""
         let encargos: [EncargoReporte]
     }
 

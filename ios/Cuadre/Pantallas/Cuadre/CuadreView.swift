@@ -226,6 +226,18 @@ struct CuadreView: View {
 
     // MARK: - Lo que hace
 
+    /// A nombre de qué negocio se despachó el día. Si el día tuvo ventas de
+    /// dos negocios distintos no se inventa uno: el reporte sale como Cuadre.
+    private var negocioDelDia: String {
+        let eventos = ((try? ctx.fetch(FetchDescriptor<Evento>())) ?? []).filter(\.vivo)
+        let grupos = ((try? ctx.fetch(FetchDescriptor<Grupo>())) ?? []).filter(\.vivo)
+        let suyos = Set((c.cobrados + c.salidas).map(\.eventoId))
+        let nombres = Set(eventos.filter { suyos.contains($0.id) }.map { e -> String in
+            e.negocio.isEmpty ? (grupos.first { $0.id == e.grupoId }?.nombre ?? "") : e.negocio
+        }.filter { !$0.isEmpty })
+        return nombres.count == 1 ? (nombres.first ?? "") : ""
+    }
+
     private func mueve(_ dias: Int) {
         guard let nuevo = Calendar.current.date(byAdding: .day, value: dias, to: dia) else { return }
         if dias > 0, nuevo > Date() { return }
@@ -241,6 +253,7 @@ struct CuadreView: View {
                 fecha: Formato.fechaCorta(dia),
                 vendido: c.vendido, costo: c.costo, comprado: c.comprado,
                 porCobrar: c.porCobrar, regalado: c.regalado,
+                negocio: negocioDelDia,
                 encargos: (c.cobrados + c.salidas).map {
                     .init(cliente: $0.cliente, producto: $0.producto, unidad: $0.unidad,
                           metodo: $0.salida.cobra ? $0.metodo : $0.salida.etiqueta,

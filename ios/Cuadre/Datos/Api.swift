@@ -146,6 +146,42 @@ actor Api {
             throw Fallo.respuestaRara
         }
     }
+
+    /// SUBIR UN ARCHIVO TAL CUAL.
+    ///
+    /// Los bytes van en el cuerpo sin envolver en `multipart`: es UN archivo, y
+    /// un formulario de varias partes serían cien líneas de fronteras y
+    /// cabeceras para no ganar nada. El servidor comprueba qué es mirando los
+    /// primeros bytes, no lo que diga esta cabecera.
+    func sube<Respuesta: Decodable>(_ datos: Data, a camino: String,
+                                    tipo: String = "image/jpeg",
+                                    metodo: String = "PUT") async throws -> Respuesta {
+        var p = URLRequest(url: Api.base.appendingPathComponent(camino))
+        p.httpMethod = metodo
+        p.setValue("application/json", forHTTPHeaderField: "accept")
+        p.setValue(tipo, forHTTPHeaderField: "content-type")
+        if let testigo { p.setValue("Bearer " + testigo, forHTTPHeaderField: "authorization") }
+        p.httpBody = datos
+        // Una foto por una red de datos del mercado no cabe en los segundos de
+        // una petición normal.
+        p.timeoutInterval = 60
+
+        let cuerpo: Data, respuesta: URLResponse
+        do {
+            (cuerpo, respuesta) = try await sesion.data(for: p)
+        } catch let e as URLError where e.code == .cancelled {
+            throw CancellationError()
+        } catch {
+            throw Fallo.sinRed
+        }
+        guard let http = respuesta as? HTTPURLResponse else { throw Fallo.respuestaRara }
+        guard (200..<300).contains(http.statusCode) else {
+            let detalle = try? JSONDecoder().decode(ErrorDelServidor.self, from: cuerpo)
+            if http.statusCode == 401 { throw Fallo.sesionCaida }
+            throw Fallo.servidor(http.statusCode, detalle?.error ?? "Error \(http.statusCode).")
+        }
+        return try Api.json.decode(Respuesta.self, from: cuerpo)
+    }
 }
 
 /// Para las rutas que no devuelven nada que importe. Se llama así y no

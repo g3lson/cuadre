@@ -140,6 +140,10 @@ extension Sincronizable {
     /// «abierto» mientras se despacha, «cerrado» cuando se cuadró el día.
     var estado: String
     var grupoId: String
+    /// A nombre de qué negocio se despacha este día. Sale del grupo al crear
+    /// la venta, pero se puede cambiar: un sábado se vende en el mercado y el
+    /// otro en la parada, y el comprobante no dice lo mismo.
+    var negocio: String
     var actualizado: Date
     var borrado: Date?
     var subido: Date?
@@ -150,6 +154,7 @@ extension Sincronizable {
         self.fecha = fecha
         self.estado = estado
         self.grupoId = ""
+        self.negocio = ""
         self.actualizado = .now
     }
 }
@@ -305,10 +310,27 @@ extension Sincronizable {
 ///
 /// «Mi negocio», «El otro negocio», «Casa». Lo que se crea dentro de un grupo lo
 /// ve la gente del grupo, sin compartirlo cosa por cosa.
+/// UN GRUPO ES UN NEGOCIO.
+///
+/// Empezó siendo solo una manera de compartir, pero es lo que la gente tiene en
+/// la cabeza: «la pescadería», «el colmado», «la casa». Así que lleva lo que
+/// lleva un negocio —su nombre, su logo, su portada— y todo lo que se despacha
+/// dentro sale con esa cara: el comprobante del cliente, el reporte del día.
+///
+/// Las imágenes NO se guardan aquí: aquí va su dirección. Un logo en base64
+/// dentro de la fila se mandaría entero en cada sincronización de cada teléfono
+/// del grupo, por una foto que cambia una vez al año.
 @Model final class Grupo: Sincronizable {
     @Attribute(.unique) var id: String
     var nombre: String
     var color: Int
+    /// La dirección del logo, cuadrado. Vacío = se usa la inicial.
+    var logo: String
+    /// La dirección de la portada, apaisada. Vacío = un degradado del color.
+    var portada: String
+    /// El teléfono que sale en el comprobante, para que el cliente sepa a
+    /// dónde llamar si algo no cuadra.
+    var telefono: String
     var actualizado: Date
     var borrado: Date?
     var subido: Date?
@@ -317,6 +339,9 @@ extension Sincronizable {
         self.id = id
         self.nombre = nombre
         self.color = color
+        self.logo = ""
+        self.portada = ""
+        self.telefono = ""
         self.actualizado = .now
     }
 }

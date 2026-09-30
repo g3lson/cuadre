@@ -13,6 +13,7 @@ import { mkdirSync, readdirSync, statSync, unlinkSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { bd, ahora, guarda, lee } from './bd.js';
 import { config } from './config.js';
+import { barre as barreImagenes } from './imagenes.js';
 
 const CUANTOS = 14;          // dos semanas
 const CADA = 24 * 3600_000;
@@ -30,7 +31,25 @@ export function respalda() {
   bd.exec(`VACUUM INTO '${destino.replace(/'/g, "''")}'`);
   guarda('ultimo_respaldo', ahora());
   barreViejos();
+  barreImagenesHuerfanas();
   return destino;
+}
+
+/**
+ * Las imágenes que ya no nombra ningún grupo. Cambiar un logo cinco veces deja
+ * cuatro archivos que nadie va a borrar a mano, y viven en el mismo disco que
+ * la base.
+ */
+function barreImagenesHuerfanas() {
+  try {
+    const enUso = new Set();
+    for (const f of bd.prepare("SELECT datos FROM grupos WHERE borrado IS NULL").all()) {
+      for (const m of String(f.datos || '').matchAll(/\/img\/[0-9a-f]{32}\.(?:jpg|png|webp)/g)) {
+        enUso.add(m[0]);
+      }
+    }
+    barreImagenes(enUso);
+  } catch { /* si falla, las huérfanas esperan a mañana */ }
 }
 
 /** Se guardan los catorce últimos. Más es llenar el disco de copias que nadie mira. */

@@ -71,6 +71,12 @@ struct VentasView: View {
         }
     }
     private var ajustes: Ajustes { Almacen.ajustes(ctx, de: sesion.usuario?.id ?? "") }
+    /// A nombre de quién se despacha: lo que se escribió en la venta, o el
+    /// nombre del negocio al que pertenece.
+    private var nombreDelNegocio: String {
+        guard let e = evento else { return "" }
+        return e.negocio.isEmpty ? (negocioDe(e)?.nombre ?? "") : e.negocio
+    }
 
     var body: some View {
         NavigationStack {
@@ -107,7 +113,11 @@ struct VentasView: View {
             }
         }
         .sheet(item: $comprobante) { o in
-            ComprobanteView(encargo: o, moneda: ajustes.moneda).hojaDeCuadre(tema)
+            ComprobanteView(encargo: o, moneda: ajustes.moneda,
+                            negocio: nombreDelNegocio,
+                            logo: evento.flatMap(negocioDe)?.logo ?? "",
+                            telefonoNegocio: evento.flatMap(negocioDe)?.telefono ?? "")
+                .hojaDeCuadre(tema)
         }
         .confirmationDialog("¿Borrar «\(aBorrar?.titulo ?? "")»?",
                             isPresented: .init(get: { aBorrar != nil }, set: { if !$0 { aBorrar = nil } }),
@@ -128,10 +138,65 @@ struct VentasView: View {
         }
     }
 
+    /// El negocio al que pertenece esta venta, si está en uno.
+    private func negocioDe(_ e: Evento) -> Grupo? {
+        guard !e.grupoId.isEmpty else { return nil }
+        return (try? ctx.fetch(FetchDescriptor<Grupo>()))?.first { $0.vivo && $0.id == e.grupoId }
+    }
+
+    /// LA FRANJA DEL NEGOCIO.
+    ///
+    /// Con dos negocios en el mismo teléfono, saber en cuál se está despachando
+    /// no puede ser leer el nombre de la venta y acordarse: la portada y el
+    /// logo lo dicen de un vistazo, antes de leer nada.
+    @ViewBuilder
+    private func franja(_ e: Evento) -> some View {
+        let g = negocioDe(e)
+        let nombre = e.negocio.isEmpty ? (g?.nombre ?? "") : e.negocio
+        if let g, !g.portada.isEmpty {
+            ZStack(alignment: .bottomLeading) {
+                ImagenDelNegocio(url: g.portada) {
+                    ColorLista.color(g.color, tema).opacity(0.4)
+                }
+                .frame(height: 96)
+                .frame(maxWidth: .infinity)
+                .clipped()
+
+                LinearGradient(colors: [.black.opacity(0), .black.opacity(0.55)],
+                               startPoint: .center, endPoint: .bottom)
+                    .allowsHitTesting(false)
+
+                HStack(spacing: 10) {
+                    LogoDelNegocio(grupo: g, lado: 38)
+                    Text(nombre)
+                        .font(tema.titulo(18))
+                        .foregroundStyle(.white)
+                        .shadow(color: .black.opacity(0.4), radius: 3, y: 1)
+                    Spacer(minLength: 0)
+                }
+                .padding(10)
+            }
+            .frame(height: 96)
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        } else if !nombre.isEmpty {
+            HStack(spacing: 10) {
+                if let g { LogoDelNegocio(grupo: g, lado: 32) }
+                Text(nombre).font(tema.texto(15, .heavy))
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(tema.texto)
+            .padding(.horizontal, 12)
+            .frame(height: 52)
+            .background(tema.superficie, in: Capsule())
+        }
+    }
+
     @ViewBuilder
     private func contenido(_ e: Evento) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
+                franja(e).padding(.top, 8)
+
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 6) {
                         Etiqueta(texto: e.estado == "abierto" ? "Despachando en vivo" : "Cerrada",
@@ -192,7 +257,6 @@ struct VentasView: View {
                         .buttonStyle(BotonRedondo())
                         .accessibilityLabel("Nueva venta")
                 }
-                .padding(.top, 8)
 
                 resumen
                 barraDeVista
@@ -676,6 +740,11 @@ struct NuevoEventoView: View {
     @State private var titulo = ""
     @State private var fecha = Date()
     @State private var grupoId = ""
+    /// A nombre de qué negocio se despacha. Sale solo del grupo, y se puede
+    /// cambiar: un sábado se vende en el mercado y otro en la parada, y el
+    /// comprobante del cliente no dice lo mismo.
+    @State private var negocio = ""
+    @State private var negocioAMano = false
     @Query(filter: #Predicate<Grupo> { $0.borrado == nil }, sort: \Grupo.nombre) private var grupos: [Grupo]
     @FocusState private var enElTitulo: Bool
 
@@ -692,17 +761,25 @@ struct NuevoEventoView: View {
                         DatePicker("", selection: $fecha, displayedComponents: .date).labelsHidden()
                     }
                     if !grupos.isEmpty {
-                        FilaAjuste(titulo: "Grupo",
-                                   detalle: grupoId.isEmpty ? "Solo tuya" : "La verá la gente del grupo",
-                                   ultima: true) {
+                        FilaAjuste(titulo: "Negocio",
+                                   detalle: grupoId.isEmpty ? "Solo tuya" : "La verá la gente del negocio") {
                             Menu {
-                                Button("Solo mía") { grupoId = "" }
-                                ForEach(grupos) { g in Button(g.nombre) { grupoId = g.id } }
+                                Button("Solo mía") { elige("") }
+                                ForEach(grupos) { g in Button(g.nombre) { elige(g.id) } }
                             } label: {
                                 ValorYChevron(texto: grupos.first { $0.id == grupoId }?.nombre ?? "Ninguno")
                             }
                         }
                     }
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("A nombre de").font(tema.texto(15, .bold))
+                        Text("Es lo que va arriba del comprobante del cliente.")
+                            .font(tema.texto(13)).foregroundStyle(tema.neutral700)
+                        Campo(marcador: "Pescadería El Muelle", valor: Binding(
+                            get: { negocio },
+                            set: { negocio = $0; negocioAMano = true }))
+                    }
+                    .padding(.vertical, 14)
                 }
 
                 Text("Dentro de la venta van los encargos de cada cliente. Al final del día, el cuadre suma lo que cobraste y lo que te costó la mercancía.")
@@ -712,6 +789,7 @@ struct NuevoEventoView: View {
                 Button("Empezar") {
                     let e = Evento(titulo: titulo.trimmingCharacters(in: .whitespaces), fecha: fecha)
                     e.grupoId = grupoId
+                    e.negocio = negocio.trimmingCharacters(in: .whitespaces)
                     ctx.insert(e)
                     try? ctx.save()
                     cerrar()
@@ -732,6 +810,14 @@ struct NuevoEventoView: View {
                 }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.large])
+    }
+
+    /// Elegir negocio rellena el nombre, salvo que ya se hubiera escrito otro a
+    /// mano: lo que tecleó una persona no lo pisa un menú.
+    private func elige(_ id: String) {
+        grupoId = id
+        guard !negocioAMano else { return }
+        negocio = grupos.first { $0.id == id }?.nombre ?? ""
     }
 }

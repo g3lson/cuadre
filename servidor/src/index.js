@@ -21,6 +21,8 @@ import { listaDeTexto, listaDeRecibo, reciboDeTexto, modelosDisponibles } from '
 import * as chin from './chinola.js';
 import { guardaReporte, leeReporte, pdf, paginaReporte } from './reportes.js';
 import { arrancaRespaldos, estado as estadoRespaldos, respalda } from './respaldos.js';
+import { guarda as guardaImagen, carpeta as carpetaImagenes, MAXIMO as IMAGEN_MAXIMA } from './imagenes.js';
+import { puedeEscribirEn } from './compartir.js';
 
 const app = express();
 app.set('trust proxy', 1);       // hay un Nginx delante; sin esto la IP es la del proxy
@@ -204,6 +206,43 @@ app.use('/api/grupos', grupos);
 // Las invitaciones viejas apuntaban a /api/listas/invitacion/…: se sigue
 // aceptando ahí para no romper un enlace que ya se mandó por WhatsApp.
 app.use('/api/listas', grupos);
+
+/* ──────────────────────── el logo y la portada ──────────────────────── */
+
+/**
+ * SUBIR UNA IMAGEN DE UN NEGOCIO.
+ *
+ * El cuerpo son los bytes de la imagen tal cual, sin `multipart`: es UN
+ * archivo, y montar un analizador de formularios con dependencia nueva para
+ * eso sería trabajo de más. Se comprueba que sea una imagen de verdad mirando
+ * sus primeros bytes, no la cabecera que mandó el teléfono.
+ *
+ * La dirección se la queda el grupo en su propia fila y viaja con la
+ * sincronización como un texto más: el servidor no guarda a qué grupo
+ * pertenece cada archivo.
+ */
+app.put('/api/grupos/:id/imagen', conSesion, limite(20),
+  express.raw({ type: ['image/*', 'application/octet-stream'], limit: IMAGEN_MAXIMA }),
+  (req, res) => {
+    if (!puedeEscribirEn(req.usuario.id, req.params.id, 'grupo')) {
+      return res.status(403).json({ error: 'Ese negocio no es tuyo.' });
+    }
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      return res.status(400).json({ error: 'No llegó ninguna imagen.' });
+    }
+    try {
+      return res.json(guardaImagen(req.body));
+    } catch (e) {
+      return res.status(e.estado || 400).json({ error: e.message });
+    }
+  });
+
+// Un año de caché y sin revalidar: el nombre del archivo ES el hash de su
+// contenido, así que una imagen distinta tiene otra dirección y nunca hay que
+// preguntar si la que se guardó sigue valiendo.
+app.use('/img', express.static(carpetaImagenes, {
+  maxAge: '365d', immutable: true, index: false, dotfiles: 'ignore', fallthrough: false,
+}));
 
 /**
  * EN VIVO.

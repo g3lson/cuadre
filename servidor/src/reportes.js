@@ -68,10 +68,15 @@ function marca(doc, x, y, r) {
 const IZQ = 48;
 const ancho = (doc) => doc.page.width - IZQ * 2;
 
-function cabecera(doc, titulo, subtitulo) {
+function cabecera(doc, titulo, subtitulo, negocio = '') {
+  // Si el día se despachó a nombre de un negocio, el reporte es DE ese negocio
+  // y lo dice arriba: es el papel que se le enseña a un socio o a un cliente.
+  // Cuadre pasa a la línea de abajo, donde va la herramienta y no el dueño.
   marca(doc, IZQ, 44, 13);
-  doc.font('Helvetica-Bold').fontSize(17).fillColor(CARBON).text('cuadre', 84, 46, { lineBreak: false });
-  doc.font('Helvetica').fontSize(9).fillColor(TINTA_SUAVE).text('de FENTE', 84, 65, { lineBreak: false });
+  doc.font('Helvetica-Bold').fontSize(17).fillColor(CARBON)
+    .text(negocio ? String(negocio).slice(0, 48) : 'cuadre', 84, 46, { lineBreak: false });
+  doc.font('Helvetica').fontSize(9).fillColor(TINTA_SUAVE)
+    .text(negocio ? 'con Cuadre, de FENTE' : 'de FENTE', 84, 65, { lineBreak: false });
   doc.font('Helvetica').fontSize(9).fillColor(TINTA_SUAVE)
     .text('cuadre.fente.com.do', IZQ, 50, { width: ancho(doc), align: 'right' });
 
@@ -225,7 +230,7 @@ function dibujaCuadre(doc, d) {
   const comprado = Number(d.comprado || 0), porCobrar = Number(d.porCobrar || 0);
   const regalado = Number(d.regalado || 0);
   const ganancia = vendido - costo - regalado;
-  let y = cabecera(doc, 'El cuadre', fechaLarga(d.fecha));
+  let y = cabecera(doc, 'El cuadre', fechaLarga(d.fecha), d.negocio);
 
   doc.roundedRect(IZQ, y, ancho(doc), 100, 18).fill(SALVIA);
   doc.font('Helvetica').fontSize(11).fillColor('#e1eecc').text('Te quedó de ganancia', IZQ + 22, y + 20, { lineBreak: false });
@@ -340,7 +345,7 @@ th.d,th.n{text-align:right}
   .falto{background:#2e2618;color:#fbe3b4}
 }
 </style></head><body><main>
-<div class="marca"><span class="punto"></span>cuadre<small>de FENTE</small></div>
+<div class="marca"><span class="punto"></span>${d.negocio ? `${esc(String(d.negocio).slice(0, 48))}<small>con Cuadre</small>` : 'cuadre<small>de FENTE</small>'}</div>
 <h1>${esc(esCuadre ? 'El cuadre' : d.titulo || 'Compra')}</h1>
 <p class="sub">${esc([d.tienda, fechaLarga(d.fecha)].filter(Boolean).join(' · '))}</p>
 <div class="cifras">${tarjetas.map(([r2, v, bien]) => `<div class="cifra${bien ? ' bien' : ''}"><span>${esc(r2)}</span><strong>${esc(v)}</strong></div>`).join('')}</div>

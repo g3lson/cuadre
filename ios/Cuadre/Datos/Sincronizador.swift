@@ -232,12 +232,20 @@ protocol DatosDe: Codable {
 
 struct DatosGrupo: DatosDe {
     var nombre = ""; var color = 0
-    init(_ m: Grupo) { nombre = m.nombre; color = m.color }
+    var logo = ""; var portada = ""; var telefono = ""
+    init(_ m: Grupo) {
+        nombre = m.nombre; color = m.color
+        logo = m.logo; portada = m.portada; telefono = m.telefono
+    }
     init(from dec: Decoder) throws {
         let c = try dec.container(keyedBy: CodingKeys.self)
         nombre = c.v(.nombre, ""); color = c.v(.color, 0)
+        logo = c.v(.logo, ""); portada = c.v(.portada, ""); telefono = c.v(.telefono, "")
     }
-    func vuelca(en m: Grupo) { m.nombre = nombre; m.color = color }
+    func vuelca(en m: Grupo) {
+        m.nombre = nombre; m.color = color
+        m.logo = logo; m.portada = portada; m.telefono = telefono
+    }
 }
 
 struct DatosPasillo: DatosDe {
@@ -304,14 +312,19 @@ struct DatosArticulo: DatosDe {
 }
 
 struct DatosEvento: DatosDe {
-    var titulo = ""; var fecha = Date(); var estado = "abierto"
-    init(_ m: Evento) { titulo = m.titulo; fecha = m.fecha; estado = m.estado }
+    var titulo = ""; var fecha = Date(); var estado = "abierto"; var negocio = ""
+    init(_ m: Evento) {
+        titulo = m.titulo; fecha = m.fecha; estado = m.estado; negocio = m.negocio
+    }
     init(from dec: Decoder) throws {
         let c = try dec.container(keyedBy: CodingKeys.self)
         titulo = c.v(.titulo, ""); fecha = c.v(.fecha, Date()); estado = c.v(.estado, "abierto")
+        negocio = c.v(.negocio, "")
     }
 
-    func vuelca(en m: Evento) { m.titulo = titulo; m.fecha = fecha; m.estado = estado }
+    func vuelca(en m: Evento) {
+        m.titulo = titulo; m.fecha = fecha; m.estado = estado; m.negocio = negocio
+    }
 }
 
 struct DatosEncargo: DatosDe {

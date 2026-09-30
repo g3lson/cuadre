@@ -15,6 +15,11 @@ struct ComprobanteView: View {
 
     let encargo: Encargo
     let moneda: String
+    /// El negocio que despacha: su nombre corona el recibo y su logo va al
+    /// lado. Sin negocio, el recibo sale como salía, con la marca de Cuadre.
+    var negocio: String = ""
+    var logo: String = ""
+    var telefonoNegocio: String = ""
 
     private let papel = Color(hex: 0xffffff)
     private let tinta = Color(hex: 0x201e1d)
@@ -55,12 +60,29 @@ struct ComprobanteView: View {
 
     private var recibo: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                HStack(spacing: 6) {
-                    Circle().fill(Color(hex: 0xc67139)).frame(width: 14, height: 14)
-                    Text("cuadre").font(.custom("Caprasimo-Regular", size: 17))
+            HStack(alignment: .center, spacing: 10) {
+                if negocio.isEmpty {
+                    HStack(spacing: 6) {
+                        Circle().fill(Color(hex: 0xc67139)).frame(width: 14, height: 14)
+                        Text("cuadre").font(.custom("Caprasimo-Regular", size: 17))
+                    }
+                } else {
+                    if !logo.isEmpty {
+                        ImagenDelNegocio(url: logo) { Color(hex: 0xece5da) }
+                            .frame(width: 34, height: 34)
+                            .clipShape(Circle())
+                    }
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(negocio)
+                            .font(.custom("Caprasimo-Regular", size: 17))
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.7)
+                        if !telefonoNegocio.isEmpty {
+                            Text(telefonoNegocio).font(.system(size: 11)).foregroundStyle(suave)
+                        }
+                    }
                 }
-                Spacer()
+                Spacer(minLength: 4)
                 Text("#" + String(encargo.id.suffix(4)).uppercased())
                     .font(.system(size: 12)).foregroundStyle(suave)
             }
@@ -128,12 +150,14 @@ struct ComprobanteView: View {
     }
 
     private var texto: String {
-        var t = "Comprobante de \(encargo.cliente)\n"
+        var t = negocio.isEmpty ? "" : "\(negocio)\n"
+        t += "Comprobante de \(encargo.cliente)\n"
         t += "\(encargo.producto) · \(Formato.cantidad(encargo.cantidad)) \(encargo.unidad)"
         t += " × \(Formato.precio(encargo.precioAplicado, moneda: moneda))\n"
         t += "Total: \(Formato.pesos(encargo.total, moneda: moneda))"
         if encargo.cobrado { t += " · \(encargo.metodo) · pagado" }
         t += "\n¡Gracias por su compra!"
+        if !telefonoNegocio.isEmpty { t += "\n\(negocio) · \(telefonoNegocio)" }
         return t
     }
 
