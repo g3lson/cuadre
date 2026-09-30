@@ -35,6 +35,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Usar el Xcode más nuevo que haya
+        # Codemagic va con Xcode 26. Aquí se coge el más alto que traiga la
+        # máquina para que compile lo mismo: sin el SDK de iOS 26, el trozo de
+        # Apple Intelligence se descarta con `canImport` y nunca se comprueba.
+        run: |
+          ls -d /Applications/Xcode*.app
+          NUEVO=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          echo "→ $NUEVO"
+          sudo xcode-select -s "$NUEVO"
+          xcodebuild -version
+
       - name: Archivar en Release, sin firmar
         run: |
           set -o pipefail
@@ -69,6 +80,17 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Usar el Xcode más nuevo que haya
+        # Codemagic va con Xcode 26. Aquí se coge el más alto que traiga la
+        # máquina para que compile lo mismo: sin el SDK de iOS 26, el trozo de
+        # Apple Intelligence se descarta con `canImport` y nunca se comprueba.
+        run: |
+          ls -d /Applications/Xcode*.app
+          NUEVO=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          echo "→ $NUEVO"
+          sudo xcode-select -s "$NUEVO"
+          xcodebuild -version
 
       - name: Ver qué Xcode hay
         run: xcodebuild -version && xcrun simctl list runtimes | head -20

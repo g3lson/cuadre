@@ -14,7 +14,7 @@ import {
   cierraSesion, cierraTodas, sesionesDe, borraCuenta,
 } from './auth.js';
 import { sync } from './rutas/sync.js';
-import { listaDeTexto, listaDeRecibo } from './ia.js';
+import { listaDeTexto, listaDeRecibo, reciboDeTexto } from './ia.js';
 import * as chin from './chinola.js';
 import { guardaReporte, leeReporte, pdf, paginaReporte } from './reportes.js';
 
@@ -135,6 +135,14 @@ ia.post('/lista', limite(20), async (req, res) => {
   try {
     const r = await listaDeTexto(req.body?.texto, { tienda: req.body?.tienda, conocidos: req.body?.conocidos });
     cuenta('ia.lista');
+    res.json(r);
+  } catch (e) { res.status(e.estado || 502).json({ error: e.message }); }
+});
+
+ia.post('/recibo-texto', limite(20), async (req, res) => {
+  try {
+    const r = await reciboDeTexto(req.body?.texto);
+    cuenta('ia.recibo.texto');
     res.json(r);
   } catch (e) { res.status(e.estado || 502).json({ error: e.message }); }
 });

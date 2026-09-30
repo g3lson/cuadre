@@ -126,6 +126,33 @@ export async function listaDeTexto(texto, { tienda = '', conocidos = [] } = {}) 
 }
 
 /**
+ * Del TEXTO de un recibo —el que sacó el propio iPhone con Vision— a filas.
+ *
+ * Es el camino normal, no el de respaldo: el teléfono lee las letras mucho mejor
+ * y mucho antes de lo que las leería un modelo mirando un JPEG, y así la foto no
+ * sale del aparato. Aquí solo queda la parte que el teléfono no siempre puede
+ * hacer: entender que «PLATANO BARAHONERO UD 12.0 300.00» son doce plátanos a
+ * veinticinco pesos.
+ */
+export async function reciboDeTexto(texto) {
+  const t = String(texto || '').trim().slice(0, 12000);
+  if (!t) throw Object.assign(new Error('No llegó el texto del recibo.'), { estado: 400 });
+
+  const bruto = await pregunta([
+    { role: 'system', content: REGLAS + `\n\nFormato: {"tienda":"","fecha":"AAAA-MM-DD","total":0,"productos":[{"nombre","unidad","cantidad","precio","nota","categoria"}]}` },
+    { role: 'user', content: `Esto es lo que dice un recibo de compra dominicano, leído línea por línea. Devuelve cada producto con su precio POR UNIDAD (si el recibo trae el importe de la línea, divídelo entre la cantidad). Los impuestos, las propinas, los descuentos, el subtotal y el total NO son productos.\n\n${t}` },
+  ], { maxTokens: 2600 });
+
+  const j = extrae(bruto);
+  return {
+    tienda: String(j?.tienda || '').trim().slice(0, 60),
+    fecha: /^\d{4}-\d{2}-\d{2}$/.test(j?.fecha || '') ? j.fecha : '',
+    total: r2(num(j?.total)),
+    productos: limpia(j?.productos),
+  };
+}
+
+/**
  * De la foto del recibo, a filas con lo que de verdad te cobraron. Es la parte
  * que más tiempo ahorra: diez productos escritos a mano son diez oportunidades
  * de teclear un número mal.

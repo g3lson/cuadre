@@ -41,11 +41,15 @@ export const config = {
     clave: s(process.env.CUADRE_IA_CLAVE),
     // Sin `auto` a propósito: `auto` deja elegir al router, y el router puede
     // elegir un proveedor que no queremos. Los modelos se nombran.
+    //
+    // Y todos GRATIS: son los que el catálogo del router marca sin precio por
+    // millón de tokens. Mientras la app no esté en producción no se gasta en IA.
     modelos: lista(process.env.CUADRE_IA_MODELOS,
-      'gemini-3.5-flash,gemini-3.7-flash,gemini-3.6-flash,gemini-2.5-flash'),
-    // Con visión de verdad: `supports_vision = 1` en el catálogo del router.
+      'gemini-3.7-flash,gemini-3.6-flash,gemini-3.5-flash-lite,gemini-3.1-flash-lite'),
+    // Los mismos, que además leen imágenes (`supports_vision = 1`). Casi nunca
+    // se usan: el texto del recibo lo saca el propio iPhone.
     modelosVision: lista(process.env.CUADRE_IA_MODELOS_VISION,
-      'gemini-3.5-flash,gemini-3.7-flash,gemini-3.6-flash,gemini-2.5-flash,gemini-3.1-flash-lite'),
+      'gemini-3.7-flash,gemini-3.6-flash,gemini-3.5-flash-lite,gemini-3.1-flash-lite'),
   },
 
   // Chinola: la cuenta que se conecta una vez y se queda conectada.

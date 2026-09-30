@@ -110,6 +110,15 @@ workflows:
         script: |
           set -e
           keychain initialize
+
+          # Los perfiles se vuelven inválidos cuando se toca una capacidad del
+          # App ID (activar Sign in with Apple, por ejemplo). Se borran los que
+          # haya en la máquina antes de bajar, para no archivar con uno viejo
+          # que ya no lleva el permiso: ese fallo sale como «doesn't match the
+          # entitlements» y cuesta media hora entenderlo.
+          rm -f "$HOME/Library/MobileDevice/Provisioning Profiles"/*.mobileprovision 2>/dev/null || true
+          rm -f "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"/*.mobileprovision 2>/dev/null || true
+
           app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create
           keychain add-certificates
           xcode-project use-profiles --project "$XCODE_PROJECT"
@@ -137,13 +146,40 @@ workflows:
           echo "--- ajustes de firma del proyecto ---"
           xcodebuild -project "$XCODE_PROJECT" -scheme "$XCODE_SCHEME" -showBuildSettings 2>/dev/null \
             | grep -E "CODE_SIGN_STYLE|DEVELOPMENT_TEAM|PROVISIONING_PROFILE|PRODUCT_BUNDLE_IDENTIFIER|MARKETING_VERSION|CURRENT_PROJECT_VERSION" || true
+          echo "--- permisos que trae el perfil ---"
+          for p in "$HOME/Library/MobileDevice/Provisioning Profiles"/*.mobileprovision; do
+            [ -f "$p" ] || continue
+            echo "== $(basename "$p")"
+            security cms -D -i "$p" 2>/dev/null \
+              | plutil -extract Entitlements xml1 -o - - 2>/dev/null \
+              | grep -E "<key>|applesignin" | head -20
+          done
+          echo "--- permisos que PIDE la app ---"
+          cat ios/Cuadre/Cuadre.entitlements
         ignore_failure: true
 
       - name: Compilar el .ipa
+        # `build-ipa` se traga el error de xcodebuild y solo dice «Failed to
+        # archive», que no sirve para nada. Si falla, se saca el error de verdad
+        # del registro que deja en /tmp.
         script: |
-          xcode-project build-ipa \
-            --project "$XCODE_PROJECT" \
-            --scheme "$XCODE_SCHEME"
+          set +e
+          xcode-project build-ipa --project "$XCODE_PROJECT" --scheme "$XCODE_SCHEME"
+          ESTADO=$?
+          if [ $ESTADO -ne 0 ]; then
+            echo
+            echo "════════ lo que dijo xcodebuild de verdad ════════"
+            REGISTRO=$(ls -t /tmp/xcodebuild_logs/*.log 2>/dev/null | head -1)
+            if [ -n "$REGISTRO" ]; then
+              grep -nE "error:|No profiles|doesn't match|entitlement|capability|Signing for|requires a provisioning" "$REGISTRO" \
+                | tail -40
+              echo "──────── y las últimas 60 líneas ────────"
+              tail -60 "$REGISTRO"
+            else
+              echo "(no encontré el registro en /tmp/xcodebuild_logs)"
+            fi
+            exit $ESTADO
+          fi
 
     artifacts:
       - build/ios/ipa/*.ipa

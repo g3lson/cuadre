@@ -13,12 +13,20 @@ import UIKit
 enum IA {
     struct ProductoLeido: Decodable, Identifiable {
         var id: String { nombre + unidad + String(cantidad) }
-        let nombre: String
-        let unidad: String
-        let cantidad: Double
-        let precio: Double
-        let nota: String
-        let categoria: String
+        var nombre: String
+        var unidad: String
+        var cantidad: Double
+        var precio: Double
+        var nota: String
+        var categoria: String
+
+        // A mano y no sintetizado: lo construye también el lector del teléfono,
+        // que no decodifica nada.
+        init(nombre: String, unidad: String, cantidad: Double,
+             precio: Double, nota: String, categoria: String) {
+            self.nombre = nombre; self.unidad = unidad; self.cantidad = cantidad
+            self.precio = precio; self.nota = nota; self.categoria = categoria
+        }
     }
 
     private struct RespuestaLista: Decodable { let productos: [ProductoLeido] }
@@ -29,9 +37,13 @@ enum IA {
         let productos: [ProductoLeido]
     }
     struct Recibo {
-        let tienda: String
-        let total: Double
-        let productos: [ProductoLeido]
+        var tienda: String
+        var total: Double
+        var productos: [ProductoLeido]
+
+        init(tienda: String, total: Double, productos: [ProductoLeido]) {
+            self.tienda = tienda; self.total = total; self.productos = productos
+        }
     }
 
     private struct PeticionLista: Encodable {
@@ -41,6 +53,7 @@ enum IA {
         struct Conocido: Encodable { let nombre: String; let unidad: String; let precio: Double }
     }
     private struct PeticionRecibo: Encodable { let imagen: String; let tipo: String }
+    private struct PeticionReciboTexto: Encodable { let texto: String }
 
     /// De «2 galones de leche y 5 libras de azúcar» a dos filas de lista.
     ///
@@ -56,7 +69,17 @@ enum IA {
         return r.productos
     }
 
-    /// La foto del recibo. Se manda comprimida y reducida: un JPEG de 1600 px de
+    /// El texto que el propio teléfono sacó del recibo, para que el servidor lo
+    /// ordene. Es el camino normal: dos kilobytes en vez de ciento veinte, y la
+    /// foto no sale del aparato.
+    static func recibo(deTexto texto: String) async throws -> Recibo {
+        let r: RespuestaRecibo = try await Api.shared.pide(
+            "api/ia/recibo-texto", metodo: "POST", cuerpo: PeticionReciboTexto(texto: texto))
+        return Recibo(tienda: r.tienda, total: r.total, productos: r.productos)
+    }
+
+    /// La foto entera. Solo se usa cuando el teléfono no pudo leer letras en
+    /// ella. Se manda comprimida y reducida: un JPEG de 1600 px de
     /// lado se lee igual de bien que el original de doce megapíxeles y sube en
     /// una décima parte del tiempo, que en el parqueo del súper es la diferencia
     /// entre funcionar y no.

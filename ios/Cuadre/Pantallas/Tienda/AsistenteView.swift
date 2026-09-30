@@ -29,6 +29,9 @@ struct AsistenteView: View {
     @State private var elegidos: Set<String> = []
     @State private var trabajando = false
     @State private var error: String?
+    /// Si lo leyó el propio iPhone, se dice: es la diferencia entre que la foto
+    /// saliera del teléfono o no, y eso la persona tiene derecho a saberlo.
+    @State private var leidoAqui = false
     @FocusState private var escribiendo: Bool
 
     private var ajustes: Ajustes { Almacen.ajustes(ctx, de: sesion.usuario?.id ?? "") }
@@ -109,6 +112,18 @@ struct AsistenteView: View {
                 .font(tema.texto(15)).foregroundStyle(tema.neutral700)
                 .fixedSize(horizontal: false, vertical: true)
 
+            HStack(alignment: .top, spacing: 8) {
+                IconoView(icono: LectorDeRecibos.todoAquí ? .check : .chispa, tamano: 15, grosor: 3)
+                    .padding(.top, 2)
+                Text(LectorDeRecibos.comoSeHace)
+                    .font(tema.texto(13, .medium))
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(tema.acento2_800)
+            .padding(12)
+            .background(tema.acento2_200, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+
             if let imagen {
                 Image(uiImage: imagen)
                     .resizable()
@@ -140,7 +155,9 @@ struct AsistenteView: View {
             .disabled(trabajando || imagen == nil)
         }
 
-        Text("Lo que escribas o la foto se manda al servidor de Cuadre y de ahí a un modelo que lo convierte en filas. No se guarda después.")
+        Text(modo == .recibo
+             ? "El texto del recibo lo lee tu iPhone. Solo sale de aquí si hace falta ordenarlo fuera, y en ese caso va el texto, no la foto."
+             : "Lo que escribas se manda al servidor de Cuadre y de ahí a un modelo que lo convierte en filas. No se guarda después.")
             .font(tema.texto(12))
             .foregroundStyle(tema.neutral700)
             .fixedSize(horizontal: false, vertical: true)
@@ -151,9 +168,14 @@ struct AsistenteView: View {
 
     @ViewBuilder
     private var propuesta: some View {
-        Text("Toca para quitar lo que no va. Lo demás entra en «\(lista.nombre)».")
-            .font(tema.texto(15)).foregroundStyle(tema.neutral700)
-            .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 6) {
+            if leidoAqui {
+                Etiqueta(texto: "Leído en tu iPhone", punto: tema.acento2_700)
+            }
+            Text("Toca para quitar lo que no va. Lo demás entra en «\(lista.nombre)».")
+                .font(tema.texto(15)).foregroundStyle(tema.neutral700)
+                .fixedSize(horizontal: false, vertical: true)
+        }
 
         ForEach(leidos) { p in
             Button {
