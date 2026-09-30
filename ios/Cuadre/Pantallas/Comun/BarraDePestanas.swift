@@ -7,32 +7,25 @@ import UIKit
 /// pestaña activa en acento y con su nombre al lado. No es un `TabView` del
 /// sistema porque la forma es esta y pelear con `UITabBar` para que se parezca
 /// sale más caro que dibujarla.
-/// LAS CUATRO PANTALLAS GENERALES.
-///
-/// «En tienda» estaba aquí y ya no: comprar una lista no es una pantalla
-/// general, es lo que se hace DENTRO de una lista, y mientras se compra la
-/// barra solo quita sitio donde está la mano. Su lugar lo ocupa Ajustes, que
-/// vivía escondido detrás del avatar —tan escondido que la pantalla de los
-/// negocios no se encontraba—.
 enum Pestana: String, CaseIterable, Identifiable {
-    case listas, ventas, cuadre, ajustes
+    case listas, tienda, ventas, cuadre
     var id: String { rawValue }
 
     var etiqueta: String {
         switch self {
         case .listas: return "Listas"
+        case .tienda: return "En tienda"
         case .ventas: return "Ventas"
         case .cuadre: return "Cuadre"
-        case .ajustes: return "Ajustes"
         }
     }
 
     var icono: Icono {
         switch self {
         case .listas: return .lista
+        case .tienda: return .bolsa
         case .ventas: return .balanza
         case .cuadre: return .circuloCheck
-        case .ajustes: return .engranaje
         }
     }
 }
@@ -107,6 +100,7 @@ struct RailDePestanas: View {
     @Environment(\.tema) private var tema
     @Binding var activa: Pestana
     var conVentas: Bool
+    var alAbrirAjustes: () -> Void
 
     private var pestanas: [Pestana] {
         conVentas ? Pestana.allCases : Pestana.allCases.filter { $0 != .ventas }
@@ -143,8 +137,16 @@ struct RailDePestanas: View {
             }
 
             Spacer(minLength: 0)
+
+            Button(action: alAbrirAjustes) {
+                IconoView(icono: .engranaje, tamano: 22)
+                    .foregroundStyle(tema.neutral500)
+                    .frame(width: 74, height: 56)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Ajustes")
+            .padding(.bottom, 14)
         }
-        .padding(.bottom, 14)
         .frame(width: 86)
         .frame(maxHeight: .infinity)
         // El color se sale por arriba y por abajo; el contenido NO. Poniendo
@@ -186,20 +188,5 @@ extension View {
     @ViewBuilder
     func anchoDeLectura(_ tope: CGFloat = 780) -> some View {
         modifier(AnchoDeLectura(tope: tope))
-    }
-}
-
-/// LO QUE MIDE ESTE TELÉFONO.
-///
-/// El alto de la zona de la barra de estado cambia con el modelo —y con que el
-/// teléfono esté en una llamada— y no hay manera de sacarlo de SwiftUI sin un
-/// `GeometryReader` que, dentro de una capa que ya respeta el margen, devuelve
-/// cero. Se le pregunta a UIKit, que lo sabe.
-enum Pantalla {
-    static var margenDeArriba: CGFloat {
-        UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .first(where: { $0.activationState == .foregroundActive })?
-            .keyWindow?.safeAreaInsets.top ?? 47
     }
 }

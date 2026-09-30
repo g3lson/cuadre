@@ -6,11 +6,6 @@ import SwiftData
 /// Está detrás del avatar y no en una pestaña: se entra dos veces al mes y no
 /// merece una quinta parte de la barra de abajo.
 struct AjustesView: View {
-    /// Cuando vive en la barra de abajo no hay nada que cerrar: el botón
-    /// «Listo» solo tiene sentido cuando esto se abrió como una hoja encima de
-    /// otra pantalla.
-    var enUnaPestana = false
-
     @Environment(\.tema) private var tema
     @Environment(\.modelContext) private var ctx
     @Environment(\.dismiss) private var cerrar
@@ -50,10 +45,8 @@ struct AjustesView: View {
             .navigationTitle("Ajustes")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
-                if !enUnaPestana {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Listo") { cerrar() }.font(tema.texto(16, .bold))
-                    }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Listo") { cerrar() }.font(tema.texto(16, .bold))
                 }
             }
             .navigationDestination(for: Destino.self) { d in
@@ -63,7 +56,7 @@ struct AjustesView: View {
                 case .chinola: ChinolaAjustesView()
                 case .cuenta: CuentaView()
                 case .ia: ModelosIAView(ajustes: ajustes)
-                case .pasillos: ClasificacionesView()
+                case .pasillos: PasillosView()
                 case .grupos: GruposView()
                 }
             }
@@ -126,9 +119,8 @@ struct AjustesView: View {
             .buttonStyle(.plain)
 
             NavigationLink(value: Destino.pasillos) {
-                FilaAjuste(titulo: "Clasificaciones",
-                           detalle: "Pasillos, marcas, tallas: cómo ordenas lo tuyo") {
-                    ValorYChevron(texto: cuantasClasificaciones)
+                FilaAjuste(titulo: "Pasillos", detalle: "El orden en que recorres la tienda") {
+                    ValorYChevron(texto: "\(cuantosPasillos)")
                 }
             }
             .buttonStyle(.plain)
@@ -143,13 +135,8 @@ struct AjustesView: View {
         }
     }
 
-    /// Cuántas están encendidas. Cero es el estado de fábrica y hay que
-    /// decirlo, no dejar un «0» suelto que parece un error.
-    private var cuantasClasificaciones: String {
-        let activas = ((try? ctx.fetch(FetchDescriptor<Clasificacion>())) ?? [])
-            .filter { $0.vivo && $0.activa }
-        if activas.isEmpty { return "Ninguna" }
-        return activas.map(\.nombre).joined(separator: " · ")
+    private var cuantosPasillos: Int {
+        ((try? ctx.fetch(FetchDescriptor<Pasillo>())) ?? []).filter(\.vivo).count
     }
 
     private var cuantosProductos: Int {

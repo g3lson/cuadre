@@ -69,18 +69,7 @@ struct FichaEncargoView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    // Cuando no entra dinero no hay nada que «cobrar»: lo que
-                    // se hace con la pantalla es guardarla, y eso va arriba a
-                    // la derecha, donde va guardar en todo iOS. Abajo solo se
-                    // queda lo que sí mueve dinero.
-                    Button(botonDeArriba) {
-                        if !encargo.cobrado, !encargo.salida.cobra {
-                            cobra(encargo.salida.etiqueta)
-                        } else {
-                            guarda(); cerrar()
-                        }
-                    }
-                    .font(tema.texto(16, .bold))
+                    Button("Listo") { guarda(); cerrar() }.font(tema.texto(16, .bold))
                 }
                 ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("Listo") { foco = nil } }
             }
@@ -306,6 +295,9 @@ struct FichaEncargoView: View {
                     .buttonStyle(BotonSuave(alto: 52))
                     .frame(width: 100)
             }
+        } else {
+            Button("Anotar la salida") { cobra(encargo.salida.etiqueta) }
+                .buttonStyle(BotonPrincipal())
         }
 
         Button("Quitar el encargo", role: .destructive) {
@@ -314,11 +306,6 @@ struct FichaEncargoView: View {
             cerrar()
         }
         .buttonStyle(BotonFantasma())
-    }
-
-    /// Qué dice el botón de arriba a la derecha.
-    private var botonDeArriba: String {
-        (!encargo.cobrado && !encargo.salida.cobra) ? "Guardar" : "Listo"
     }
 
     private var pista: String {

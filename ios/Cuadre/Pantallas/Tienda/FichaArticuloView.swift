@@ -26,7 +26,6 @@ struct FichaArticuloView: View {
     @State private var total = ""
     @State private var derivado: Derivado = .total
     @State private var menuUnidad = false
-    @State private var viendoHistorial = false
     @State private var sugerencias: [String] = []
     /// Si la persona la eligió a mano, no se vuelve a adivinar: corregir algo y
     /// que se corrija solo otra vez al escribir una letra es lo más molesto que
@@ -79,7 +78,6 @@ struct FichaArticuloView: View {
                     }
 
                     numeros
-                    comparacion
                     Text(pista)
                         .font(tema.texto(13))
                         .foregroundStyle(tema.neutral700)
@@ -91,7 +89,30 @@ struct FichaArticuloView: View {
                         .focused($foco, equals: .nota)
                         .onChange(of: articulo.nota) { _, _ in articulo.toco() }
 
-                    clasificaciones
+                    // El pasillo. Se adivina solo al escribir el nombre, así que
+                    // casi nunca hay que tocarlo; está para las veces que se
+                    // equivoca, que las hay.
+                    HStack(spacing: 10) {
+                        Text("Pasillo").font(tema.texto(15, .bold))
+                        Spacer()
+                        Menu {
+                            ForEach(Almacen.pasillos(ctx)) { pasillo in
+                                let c = pasillo.nombre
+                                Button {
+                                    articulo.categoria = c
+                                    categoriaAMano = true
+                                    articulo.toco()
+                                } label: {
+                                    if articulo.categoria == c { Label(c, systemImage: "checkmark") } else { Text(c) }
+                                }
+                            }
+                        } label: {
+                            ValorYChevron(texto: articulo.categoria)
+                        }
+                    }
+                    .padding(.horizontal, 18)
+                    .frame(minHeight: 50)
+                    .background(tema.superficie, in: Capsule())
 
                     HStack(spacing: 10) {
                         Button("Quitar", role: .destructive) {
@@ -127,111 +148,9 @@ struct FichaArticuloView: View {
         }
         .presentationDetents([.large])
         .onAppear { carga() }
-        .sheet(isPresented: $viendoHistorial) {
-            HistorialDePreciosView(nombre: articulo.nombre, moneda: moneda,
-                                   compras: Almacen.historial(ctx, de: articulo.nombre))
-                .hojaDeCuadre(tema)
-        }
     }
 
     // MARK: - Los tres números
-
-    /// LO QUE PAGASTE LA ÚLTIMA VEZ.
-    ///
-    /// Ninguna cadena de aquí publica sus ofertas de forma que una app pueda
-    /// leerlas. Pero el precio que importa para tu bolsillo —el tuyo— ya lo
-    /// llevas apuntado, y compararlo cuesta cero: si hoy está más caro, se dice
-    /// aquí mismo, mientras todavía se puede dejar en el estante.
-    @ViewBuilder
-    private var comparacion: some View {
-        if let (antes, cambio) = Almacen.comparaPrecio(ctx, de: articulo) {
-            Button { viendoHistorial = true } label: {
-                HStack(spacing: 8) {
-                    IconoView(icono: .reloj, tamano: 16, grosor: 2.6)
-                    Text(textoDeLaComparacion(antes, cambio))
-                        .font(tema.texto(13, .semibold))
-                        .multilineTextAlignment(.leading)
-                    Spacer(minLength: 0)
-                    IconoView(icono: .chevron, tamano: 13, grosor: 2.6)
-                }
-                .foregroundStyle(cambio > 0.02 ? tema.acento800 : tema.acento2_800)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(cambio > 0.02 ? tema.acento200 : tema.acento2_200,
-                            in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            }
-            .buttonStyle(.plain)
-            .padding(.top, -2)
-        }
-    }
-
-    private func textoDeLaComparacion(_ antes: Almacen.Compra, _ cambio: Double) -> String {
-        let cuanto = Formato.precio(antes.precio, moneda: moneda)
-        let donde = antes.tienda.isEmpty ? "" : " en \(antes.tienda)"
-        let porciento = Int((abs(cambio) * 100).rounded())
-        if porciento < 2 { return "Igual que la última vez: \(cuanto)\(donde)" }
-        let verbo = cambio > 0 ? "más caro" : "más barato"
-        return "\(porciento)% \(verbo) que la última vez (\(cuanto)\(donde))"
-    }
-
-    /// LAS CLASIFICACIONES QUE HAYAS ENCENDIDO.
-    ///
-    /// Antes aquí había una fila de «Pasillo» fija que no se podía quitar. Si
-    /// no clasificas por pasillos —y mucha gente no— era una casilla de más en
-    /// cada producto que anotas. Ahora no hay ninguna hasta que enciendas la
-    /// que te sirva, y puedes inventarte las tuyas: «Marca», «Talla», lo que
-    /// necesites.
-    @ViewBuilder
-    private var clasificaciones: some View {
-        ForEach(Almacen.clasificacionesActivas(ctx)) { c in
-            HStack(spacing: 10) {
-                Text(c.nombre).font(tema.texto(15, .bold))
-                Spacer()
-                Menu {
-                    Button("Sin poner") { pon("", en: c) }
-                    ForEach(Almacen.valoresDe(ctx, c.id)) { v in
-                        Button {
-                            pon(v.nombre, en: c)
-                        } label: {
-                            if valorDe(c) == v.nombre {
-                                Label(v.nombre, systemImage: "checkmark")
-                            } else { Text(v.nombre) }
-                        }
-                    }
-                } label: {
-                    ValorYChevron(texto: valorDe(c).isEmpty ? "Sin poner" : valorDe(c))
-                }
-            }
-            .padding(.horizontal, 18)
-            .frame(minHeight: 50)
-            .background(tema.superficie, in: Capsule())
-        }
-    }
-
-    private func valorDe(_ c: Clasificacion) -> String {
-        c.id == Clasificacion.pasillos ? articulo.categoria : articulo.etiqueta(c.id)
-    }
-
-    private func pon(_ valor: String, en c: Clasificacion) {
-        if c.id == Clasificacion.pasillos {
-            articulo.categoria = valor
-            categoriaAMano = true
-        } else {
-            articulo.pon(valor, en: c.id)
-        }
-        articulo.toco()
-    }
-
-    /// EL ANCHO DE LA COLUMNA DE LA DERECHA.
-    ///
-    /// Los tres controles —el contador con su unidad, el precio y el total—
-    /// miden lo mismo y empiezan donde mismo. Antes cada uno pedía el ancho que
-    /// necesitaba su contenido y quedaban tres bordes escalonados: la fila de
-    /// arriba corta y las dos de abajo largas. Alinear tres cajas es gratis y
-    /// es la diferencia entre una pantalla ordenada y una que parece a medio
-    /// hacer.
-    private let anchoDeControl: CGFloat = 196
 
     @ViewBuilder
     private var numeros: some View {
@@ -242,21 +161,20 @@ struct FichaArticuloView: View {
                 HStack(spacing: 6) {
                     HStack(spacing: 0) {
                         Button { paso(-1) } label: {
-                            Text("−").font(tema.texto(20, .bold)).frame(width: 36, height: 38)
+                            Text("−").font(tema.texto(20, .bold)).frame(width: 38, height: 38)
                         }
                         TextField("1", text: $cantidad)
                             .font(tema.texto(17, .heavy))
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.center)
-                            .frame(maxWidth: .infinity)
+                            .frame(width: 54)
                             .focused($foco, equals: .cantidad)
                             .onChange(of: cantidad) { _, _ in cambióCantidad() }
                         Button { paso(1) } label: {
-                            Text("+").font(tema.texto(20, .bold)).frame(width: 36, height: 38)
+                            Text("+").font(tema.texto(20, .bold)).frame(width: 38, height: 38)
                         }
                     }
                     .foregroundStyle(tema.texto)
-                    .frame(maxWidth: .infinity)
                     .padding(3)
                     .background(tema.fondo, in: Capsule())
 
@@ -276,7 +194,6 @@ struct FichaArticuloView: View {
                     .fixedSize()
                     .accessibilityLabel("Unidad: \(unidad.etiqueta)")
                 }
-                .frame(width: anchoDeControl)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
@@ -322,7 +239,6 @@ struct FichaArticuloView: View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(titulo).font(tema.texto(15, .bold))
-                    .lineLimit(1).minimumScaleFactor(0.75)
                 if let aviso {
                     Text(aviso).font(tema.texto(12, .heavy)).foregroundStyle(tema.acento2_800)
                 }
@@ -334,12 +250,12 @@ struct FichaArticuloView: View {
                     .font(tema.texto(17, .heavy))
                     .keyboardType(.decimalPad)
                     .multilineTextAlignment(.trailing)
-                    .frame(maxWidth: .infinity)
+                    .frame(width: 92)
                     .focused($foco, equals: campo)
                     .onChange(of: texto.wrappedValue) { _, _ in alCambiar() }
             }
             .padding(.horizontal, 14)
-            .frame(width: anchoDeControl, height: 44)
+            .frame(height: 44)
             .background(tema.fondo, in: Capsule())
         }
         .padding(.horizontal, 10)

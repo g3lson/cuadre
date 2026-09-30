@@ -94,7 +94,6 @@ final class Sincronizador {
 
     private func reúneLoPendiente() -> (CambiosJSON, Enviados) {
         let grupos = pendientes(Grupo.self)
-        let clasificaciones = pendientes(Clasificacion.self)
         let pasillos = pendientes(Pasillo.self)
         let listas = pendientes(Lista.self)
         let articulos = pendientes(Articulo.self)
@@ -107,7 +106,6 @@ final class Sincronizador {
 
         let c = CambiosJSON(
             grupos: grupos.map { Fila(id: $0.id, actualizado: $0.actualizado, borrado: $0.borrado, datos: .init($0)) },
-            clasificaciones: clasificaciones.map { Fila(id: $0.id, actualizado: $0.actualizado, borrado: $0.borrado, datos: .init($0)) },
             pasillos: pasillos.map { Fila(id: $0.id, actualizado: $0.actualizado, borrado: $0.borrado, datos: .init($0)) },
             listas: listas.map { Fila(id: $0.id, actualizado: $0.actualizado, borrado: $0.borrado, datos: .init($0)) },
             articulos: articulos.map { Fila(id: $0.id, actualizado: $0.actualizado, borrado: $0.borrado, datos: .init($0)) },
@@ -118,12 +116,12 @@ final class Sincronizador {
             tiendas: tiendas.map { Fila(id: $0.id, actualizado: $0.actualizado, borrado: $0.borrado, datos: .init($0)) },
             ajustes: ajustes.map { Fila(id: $0.id, actualizado: $0.actualizado, borrado: $0.borrado, datos: .init($0)) }
         )
-        return (c, Enviados(grupos: grupos, clasificaciones: clasificaciones, pasillos: pasillos, listas: listas, articulos: articulos, eventos: eventos, encargos: encargos,
+        return (c, Enviados(grupos: grupos, pasillos: pasillos, listas: listas, articulos: articulos, eventos: eventos, encargos: encargos,
                             catalogo: catalogo, clientes: clientes, tiendas: tiendas, ajustes: ajustes))
     }
 
     private struct Enviados {
-        let grupos: [Grupo], clasificaciones: [Clasificacion], pasillos: [Pasillo]
+        let grupos: [Grupo], pasillos: [Pasillo]
         let listas: [Lista], articulos: [Articulo], eventos: [Evento], encargos: [Encargo]
         let catalogo: [Producto], clientes: [Cliente], tiendas: [Tienda], ajustes: [Ajustes]
     }
@@ -133,7 +131,6 @@ final class Sincronizador {
     /// `subido` y esa fila vuelve a salir en el siguiente viaje.
     private func marcaSubido(_ e: Enviados, cuando: Date) {
         e.grupos.forEach { $0.subido = cuando }
-        e.clasificaciones.forEach { $0.subido = cuando }
         e.pasillos.forEach { $0.subido = cuando }
         e.listas.forEach { $0.subido = cuando }
         e.articulos.forEach { $0.subido = cuando }
@@ -149,7 +146,6 @@ final class Sincronizador {
 
     private func aplica(_ c: CambiosJSON) {
         funde(c.grupos) { Grupo(id: $0, nombre: "") }
-        funde(c.clasificaciones) { Clasificacion(id: $0, nombre: "") }
         funde(c.pasillos) { Pasillo(id: $0, nombre: "") }
         funde(c.listas) { Lista(id: $0, nombre: "") }
         funde(c.articulos) { Articulo(id: $0, listaId: "") }
@@ -212,7 +208,6 @@ struct Fila<D: Codable>: Codable {
 
 struct CambiosJSON: Codable {
     var grupos: [Fila<DatosGrupo>] = []
-    var clasificaciones: [Fila<DatosClasificacion>] = []
     var pasillos: [Fila<DatosPasillo>] = []
     var listas: [Fila<DatosLista>] = []
     var articulos: [Fila<DatosArticulo>] = []
@@ -268,37 +263,13 @@ struct DatosGrupo: DatosDe {
 }
 
 struct DatosPasillo: DatosDe {
-    var nombre = ""; var orden = 0; var grupoId = ""; var clasificacionId = ""
-    init(_ m: Pasillo) {
-        nombre = m.nombre; orden = m.orden; grupoId = m.grupoId
-        clasificacionId = m.clasificacionId
-    }
+    var nombre = ""; var orden = 0; var grupoId = ""
+    init(_ m: Pasillo) { nombre = m.nombre; orden = m.orden; grupoId = m.grupoId }
     init(from dec: Decoder) throws {
         let c = try dec.container(keyedBy: CodingKeys.self)
         nombre = c.v(.nombre, ""); orden = c.v(.orden, 0); grupoId = c.v(.grupoId, "")
-        clasificacionId = c.v(.clasificacionId, "")
     }
-    func vuelca(en m: Pasillo) {
-        m.nombre = nombre; m.orden = orden; m.grupoId = grupoId
-        m.clasificacionId = clasificacionId
-    }
-}
-
-struct DatosClasificacion: DatosDe {
-    var nombre = ""; var activa = false; var agrupa = false; var orden = 0; var grupoId = ""
-    init(_ m: Clasificacion) {
-        nombre = m.nombre; activa = m.activa; agrupa = m.agrupa
-        orden = m.orden; grupoId = m.grupoId
-    }
-    init(from dec: Decoder) throws {
-        let c = try dec.container(keyedBy: CodingKeys.self)
-        nombre = c.v(.nombre, ""); activa = c.v(.activa, false); agrupa = c.v(.agrupa, false)
-        orden = c.v(.orden, 0); grupoId = c.v(.grupoId, "")
-    }
-    func vuelca(en m: Clasificacion) {
-        m.nombre = nombre; m.activa = activa; m.agrupa = agrupa
-        m.orden = orden; m.grupoId = grupoId
-    }
+    func vuelca(en m: Pasillo) { m.nombre = nombre; m.orden = orden; m.grupoId = grupoId }
 }
 
 struct DatosLista: DatosDe {
@@ -332,12 +303,12 @@ struct DatosLista: DatosDe {
 struct DatosArticulo: DatosDe {
     var listaId = ""; var nombre = ""; var unidad = "ud"; var cantidad: Double = 1
     var precio: Double = 0; var hecho = false; var nota = ""; var categoria = Categoria.porDefecto
-    var orden = 0; var tienda = ""; var hechoPor = ""; var etiquetas = ""
+    var orden = 0; var tienda = ""; var hechoPor = ""
 
     init(_ m: Articulo) {
         listaId = m.listaId; nombre = m.nombre; unidad = m.unidad; cantidad = m.cantidad
         precio = m.precio; hecho = m.hecho; nota = m.nota; categoria = m.categoria
-        orden = m.orden; hechoPor = m.hechoPor; etiquetas = m.etiquetas
+        orden = m.orden; hechoPor = m.hechoPor
     }
     init(from dec: Decoder) throws {
         let c = try dec.container(keyedBy: CodingKeys.self)
@@ -345,13 +316,12 @@ struct DatosArticulo: DatosDe {
         cantidad = c.v(.cantidad, 1); precio = c.v(.precio, 0); hecho = c.v(.hecho, false)
         nota = c.v(.nota, ""); categoria = c.v(.categoria, Categoria.porDefecto)
         orden = c.v(.orden, 0); tienda = c.v(.tienda, ""); hechoPor = c.v(.hechoPor, "")
-        etiquetas = c.v(.etiquetas, "")
     }
 
     func vuelca(en m: Articulo) {
         m.listaId = listaId; m.nombre = nombre; m.unidad = unidad; m.cantidad = cantidad
         m.precio = precio; m.hecho = hecho; m.nota = nota; m.categoria = categoria
-        m.orden = orden; m.hechoPor = hechoPor; m.etiquetas = etiquetas
+        m.orden = orden; m.hechoPor = hechoPor
     }
 }
 

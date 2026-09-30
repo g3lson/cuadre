@@ -2,12 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- EL IDIOMA.
-	     Sin declarar que la app habla español, iOS enseña en INGLÉS todo lo
-	     que pone el sistema por su cuenta: el selector de contactos, el de
-	     fotos, los botones de compartir. La app entera en español y de
-	     repente «Private Access to Contacts». Declararlo aquí es lo que hace
-	     que el sistema use el español en sus propias pantallas. -->
+	<!-- Sin declarar que la app habla español, iOS enseña en INGLÉS lo que
+	     pone él por su cuenta: el selector de contactos, el de fotos. -->
 	<key>CFBundleLocalizations</key>
 	<array>
 		<string>es</string>

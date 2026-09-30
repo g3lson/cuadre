@@ -78,7 +78,7 @@ struct ListasView: View {
         .sheet(isPresented: $creando) {
             NuevaListaView { nueva in
                 enTienda = nueva.id
-                pestana = .listas
+                pestana = .tienda
             }
             .hojaDeCuadre(tema)
         }
@@ -183,7 +183,7 @@ struct ListasView: View {
             }
             Button("Seguir comprando") {
                 enTienda = l.id
-                pestana = .listas
+                pestana = .tienda
             }
             .buttonStyle(BotonPrincipal(alto: 48))
         }
@@ -199,7 +199,7 @@ struct ListasView: View {
 
         return Button {
             enTienda = l.id
-            pestana = .listas
+            pestana = .tienda
         } label: {
             HStack(spacing: 14) {
                 ZStack {
@@ -323,7 +323,7 @@ struct DetalleLista: View {
             // Una lista abierta no tiene pantalla propia: es la de «En tienda».
             Color.clear.onAppear {
                 enTienda = lista.id
-                pestana = .listas
+                pestana = .tienda
                 cerrar()
             }
         }
