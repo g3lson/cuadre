@@ -43,26 +43,26 @@ extension Sincronizable {
 }
 
 @Model final class Lista: Sincronizable {
-    @Attribute(.unique) var id: String
-    var nombre: String
-    var tienda: String
-    var presupuesto: Double
-    var fecha: Date
+    @Attribute(.unique) var id: String = ""
+    var nombre: String = ""
+    var tienda: String = ""
+    var presupuesto: Double = 0
+    var fecha: Date = .now
     /// Índice en la paleta del tema: el color se resuelve al pintar, para que
     /// cambiar de tema cambie también los colores de las listas.
-    var color: Int
+    var color: Int = 0
     /// «activa» mientras se compra, «cerrada» cuando cuadró.
-    var estado: String
-    var cerradaEn: Date?
-    var notaCierre: String
+    var estado: String = ""
+    var cerradaEn: Date? = nil
+    var notaCierre: String = ""
     /// Qué se hizo con el gasto: el texto que se enseña en la lista cerrada.
-    var chinolaNota: String
-    var orden: Int
+    var chinolaNota: String = ""
+    var orden: Int = 0
     /// A qué grupo pertenece. Vacío = solo tuya.
-    var grupoId: String
-    var actualizado: Date
-    var borrado: Date?
-    var subido: Date?
+    var grupoId: String = ""
+    var actualizado: Date = .now
+    var borrado: Date? = nil
+    var subido: Date? = nil
 
     init(id: String = UUID().uuidString, nombre: String, tienda: String = "",
          presupuesto: Double = 0, fecha: Date = .now, color: Int = 0,
@@ -86,23 +86,23 @@ extension Sincronizable {
 }
 
 @Model final class Articulo: Sincronizable {
-    @Attribute(.unique) var id: String
-    var listaId: String
-    var nombre: String
-    var unidad: String
-    var cantidad: Double
-    var precio: Double
-    var hecho: Bool
-    var nota: String
-    var categoria: String
-    var orden: Int
+    @Attribute(.unique) var id: String = ""
+    var listaId: String = ""
+    var nombre: String = ""
+    var unidad: String = ""
+    var cantidad: Double = 0
+    var precio: Double = 0
+    var hecho: Bool = false
+    var nota: String = ""
+    var categoria: String = ""
+    var orden: Int = 0
     /// Quién lo echó al carrito, cuando la lista es de dos. Se guarda el nombre
     /// y no el identificador: lo que hay que enseñar es «lo cogió Ana», y pedirle
     /// el nombre al servidor por cada fila para eso sería absurdo.
-    var hechoPor: String
-    var actualizado: Date
-    var borrado: Date?
-    var subido: Date?
+    var hechoPor: String = ""
+    var actualizado: Date = .now
+    var borrado: Date? = nil
+    var subido: Date? = nil
 
     init(id: String = UUID().uuidString, listaId: String, nombre: String = "",
          unidad: String = "ud", cantidad: Double = 1, precio: Double = 0,
@@ -134,19 +134,19 @@ extension Sincronizable {
 }
 
 @Model final class Evento: Sincronizable {
-    @Attribute(.unique) var id: String
-    var titulo: String
-    var fecha: Date
+    @Attribute(.unique) var id: String = ""
+    var titulo: String = ""
+    var fecha: Date = .now
     /// «abierto» mientras se despacha, «cerrado» cuando se cuadró el día.
-    var estado: String
-    var grupoId: String
+    var estado: String = ""
+    var grupoId: String = ""
     /// A nombre de qué negocio se despacha este día. Sale del grupo al crear
     /// la venta, pero se puede cambiar: un sábado se vende en el mercado y el
     /// otro en la parada, y el comprobante no dice lo mismo.
-    var negocio: String
-    var actualizado: Date
-    var borrado: Date?
-    var subido: Date?
+    var negocio: String = ""
+    var actualizado: Date = .now
+    var borrado: Date? = nil
+    var subido: Date? = nil
 
     init(id: String = UUID().uuidString, titulo: String, fecha: Date = .now, estado: String = "abierto") {
         self.id = id
@@ -160,37 +160,37 @@ extension Sincronizable {
 }
 
 @Model final class Encargo: Sincronizable {
-    @Attribute(.unique) var id: String
-    var eventoId: String
-    var cliente: String
-    var telefono: String
-    var producto: String
-    var unidad: String
+    @Attribute(.unique) var id: String = ""
+    var eventoId: String = ""
+    var cliente: String = ""
+    var telefono: String = ""
+    var producto: String = ""
+    var unidad: String = ""
     /// Lo que pidió, que no tiene por qué ser lo que se le despachó.
-    var pedido: Double
-    var cantidad: Double
-    var tarifa: String
-    var precioDetal: Double
-    var precioMayor: Double
-    var precioEspecial: Double
+    var pedido: Double = 0
+    var cantidad: Double = 0
+    var tarifa: String = ""
+    var precioDetal: Double = 0
+    var precioMayor: Double = 0
+    var precioEspecial: Double = 0
     /// Lo que te costó a ti la libra. Es lo que hace que el cuadre sepa la ganancia.
-    var costo: Double
+    var costo: Double = 0
     /// «pendiente» o «cobrado».
-    var estado: String
+    var estado: String = ""
     /// Qué clase de salida es. No todo lo que sale del negocio se cobra: hay
     /// regalos, donaciones, consumo propio y rebajas. Contarlas como ventas de
     /// cero pesos falsea el margen; no contarlas hace que el inventario no cuadre.
-    var clase: String
-    var metodo: String
-    var nota: String
+    var clase: String = ""
+    var metodo: String = ""
+    var nota: String = ""
     /// Quién lo anotó. En una venta a varias manos es la mitad de la
     /// información: saber que se vendieron treinta libras no dice nada si no se
     /// sabe quién las despachó.
-    var registradoPor: String
-    var cobradoEn: Date?
-    var actualizado: Date
-    var borrado: Date?
-    var subido: Date?
+    var registradoPor: String = ""
+    var cobradoEn: Date? = nil
+    var actualizado: Date = .now
+    var borrado: Date? = nil
+    var subido: Date? = nil
 
     init(id: String = UUID().uuidString, eventoId: String, cliente: String,
          producto: String, unidad: String = "lb", pedido: Double = 1,
@@ -236,17 +236,17 @@ extension Sincronizable {
 }
 
 @Model final class Producto: Sincronizable {
-    @Attribute(.unique) var id: String
-    var nombre: String
-    var categoria: String
-    var unidad: String
-    var costo: Double
-    var precioDetal: Double
-    var precioMayor: Double
-    var precioEspecial: Double
-    var actualizado: Date
-    var borrado: Date?
-    var subido: Date?
+    @Attribute(.unique) var id: String = ""
+    var nombre: String = ""
+    var categoria: String = ""
+    var unidad: String = ""
+    var costo: Double = 0
+    var precioDetal: Double = 0
+    var precioMayor: Double = 0
+    var precioEspecial: Double = 0
+    var actualizado: Date = .now
+    var borrado: Date? = nil
+    var subido: Date? = nil
 
     init(id: String = UUID().uuidString, nombre: String, categoria: String = Categoria.porDefecto,
          unidad: String = "lb", costo: Double = 0, precioDetal: Double = 0,
@@ -264,13 +264,13 @@ extension Sincronizable {
 }
 
 @Model final class Cliente: Sincronizable {
-    @Attribute(.unique) var id: String
-    var nombre: String
-    var telefono: String
-    var grupoId: String
-    var actualizado: Date
-    var borrado: Date?
-    var subido: Date?
+    @Attribute(.unique) var id: String = ""
+    var nombre: String = ""
+    var telefono: String = ""
+    var grupoId: String = ""
+    var actualizado: Date = .now
+    var borrado: Date? = nil
+    var subido: Date? = nil
 
     init(id: String = UUID().uuidString, nombre: String, telefono: String = "") {
         self.id = id
@@ -288,14 +288,14 @@ extension Sincronizable {
 /// colmado no tiene «Ferretería», y quien vende pescado querrá «Nevera» antes
 /// que «Víveres». Las que trae la app son un punto de partida, no una regla.
 @Model final class Pasillo: Sincronizable {
-    @Attribute(.unique) var id: String
-    var nombre: String
+    @Attribute(.unique) var id: String = ""
+    var nombre: String = ""
     /// En qué orden se recorren. Es lo que de verdad ahorra pasos en el súper.
-    var orden: Int
-    var grupoId: String
-    var actualizado: Date
-    var borrado: Date?
-    var subido: Date?
+    var orden: Int = 0
+    var grupoId: String = ""
+    var actualizado: Date = .now
+    var borrado: Date? = nil
+    var subido: Date? = nil
 
     init(id: String = UUID().uuidString, nombre: String, orden: Int = 0, grupoId: String = "") {
         self.id = id
@@ -321,19 +321,19 @@ extension Sincronizable {
 /// dentro de la fila se mandaría entero en cada sincronización de cada teléfono
 /// del grupo, por una foto que cambia una vez al año.
 @Model final class Grupo: Sincronizable {
-    @Attribute(.unique) var id: String
-    var nombre: String
-    var color: Int
+    @Attribute(.unique) var id: String = ""
+    var nombre: String = ""
+    var color: Int = 0
     /// La dirección del logo, cuadrado. Vacío = se usa la inicial.
-    var logo: String
+    var logo: String = ""
     /// La dirección de la portada, apaisada. Vacío = un degradado del color.
-    var portada: String
+    var portada: String = ""
     /// El teléfono que sale en el comprobante, para que el cliente sepa a
     /// dónde llamar si algo no cuadra.
-    var telefono: String
-    var actualizado: Date
-    var borrado: Date?
-    var subido: Date?
+    var telefono: String = ""
+    var actualizado: Date = .now
+    var borrado: Date? = nil
+    var subido: Date? = nil
 
     init(id: String = UUID().uuidString, nombre: String, color: Int = 0) {
         self.id = id
@@ -347,11 +347,11 @@ extension Sincronizable {
 }
 
 @Model final class Tienda: Sincronizable {
-    @Attribute(.unique) var id: String
-    var nombre: String
-    var actualizado: Date
-    var borrado: Date?
-    var subido: Date?
+    @Attribute(.unique) var id: String = ""
+    var nombre: String = ""
+    var actualizado: Date = .now
+    var borrado: Date? = nil
+    var subido: Date? = nil
 
     init(id: String = UUID().uuidString, nombre: String) {
         self.id = id
@@ -363,35 +363,35 @@ extension Sincronizable {
 /// Los ajustes son una sola fila, y su `id` es el de la persona: así el
 /// sincronizador los trata igual que a todo lo demás sin un caso aparte.
 @Model final class Ajustes: Sincronizable {
-    @Attribute(.unique) var id: String
-    var tema: String
-    var moneda: String
-    var unidadPorDefecto: String
-    var modoVendedor: Bool
-    var nombreNegocio: String
-    var verCantidad: Bool
-    var verPrecio: Bool
-    var verTotal: Bool
-    var verNota: Bool
-    var nombreDetal: String
-    var nombreMayor: String
-    var nombreEspecial: String
+    @Attribute(.unique) var id: String = ""
+    var tema: String = ""
+    var moneda: String = ""
+    var unidadPorDefecto: String = ""
+    var modoVendedor: Bool = false
+    var nombreNegocio: String = ""
+    var verCantidad: Bool = false
+    var verPrecio: Bool = false
+    var verTotal: Bool = false
+    var verNota: Bool = false
+    var nombreDetal: String = ""
+    var nombreMayor: String = ""
+    var nombreEspecial: String = ""
     /// Agrupar la lista por categoría para recorrer el súper en orden en vez de
     /// ir y volver por los pasillos.
-    var agrupar: Bool
+    var agrupar: Bool = false
     /// El modelo de IA que eligió esta persona. Vacío = el que traiga el servidor.
-    var modeloIA: String
+    var modeloIA: String = ""
     /// Cómo se ven los encargos: «tarjetas», «tabla» o «compacta».
-    var vistaVentas: String
+    var vistaVentas: String = ""
     /// Recordar las listas con fecha.
-    var avisarListas: Bool
+    var avisarListas: Bool = false
     /// Preguntar antes de dar algo por cobrado. Viene encendido: marcar a
     /// alguien como que pagó cuando no ha pagado cuesta dinero de verdad, y el
     /// error se descubre cuando ya se fue.
-    var confirmarCobro: Bool
-    var actualizado: Date
-    var borrado: Date?
-    var subido: Date?
+    var confirmarCobro: Bool = false
+    var actualizado: Date = .now
+    var borrado: Date? = nil
+    var subido: Date? = nil
 
     init(id: String) {
         self.id = id

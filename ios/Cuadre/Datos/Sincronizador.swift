@@ -34,8 +34,18 @@ final class Sincronizador {
     /// teléfono: si el reloj del teléfono va cinco minutos adelantado, usar la
     /// hora de aquí se saltaría cinco minutos de cambios ajenos.
     private var hasta: String {
-        get { UserDefaults.standard.string(forKey: "sincronizadoHasta") ?? "" }
-        set { UserDefaults.standard.set(newValue, forKey: "sincronizadoHasta") }
+        get { UserDefaults.standard.string(forKey: Sincronizador.llaveHasta) ?? "" }
+        set { UserDefaults.standard.set(newValue, forKey: Sincronizador.llaveHasta) }
+    }
+
+    /// La marca vive FUERA de la base, así que sobrevive a que la base se
+    /// borre. Quien borre la base tiene que borrar también esto, o la app pide
+    /// «lo que cambió desde el martes», no le devuelven nada, y se queda vacía
+    /// con todos los datos intactos en el servidor.
+    static let llaveHasta = "sincronizadoHasta"
+
+    static func empiezaDeCero() {
+        UserDefaults.standard.removeObject(forKey: llaveHasta)
     }
 
     init(contexto: ModelContext) {
