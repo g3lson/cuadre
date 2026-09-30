@@ -149,7 +149,7 @@ jobs:
             xcrun simctl terminate "$UDID" "$APLICACION" 2>/dev/null || true
             sleep 1
             xcrun simctl launch "$UDID" "$APLICACION" -demo \
-              -pestana "$2" -abre "${3:-nada}" -tema "${4:-barro}" >/dev/null || true
+              -pestana "$2" -abre "${3:-nada}" -tema "${4:-mercado}" >/dev/null || true
             sleep "${ESPERA:-6}"
             xcrun simctl io "$UDID" screenshot "captura-$1.png" || true
             echo "  · $1"
@@ -179,8 +179,10 @@ jobs:
           captura 19-nueva-venta ventas evento
           captura 23-cuadre-semana cuadre semana
 
-          # Los otros dos temas, para ver que el cambio es solo de tokens.
-          captura 20-mercado tienda nada mercado
+          # El tema de la casa es Mercado y en él sale todo lo de arriba. Los
+          # otros dos, una de cada uno, para ver que el cambio es solo de
+          # colores y tipografía y que ninguna pantalla se rompe.
+          captura 20-barro tienda nada barro
           captura 21-noche tienda nada noche
           captura 22-noche-cuadre cuadre nada noche
 
@@ -214,7 +216,7 @@ jobs:
             set -- $par
             xcrun simctl terminate "$TABLETA" "$APLICACION" 2>/dev/null || true
             sleep 1
-            xcrun simctl launch "$TABLETA" "$APLICACION" -demo -pestana "$2" -tema barro >/dev/null || true
+            xcrun simctl launch "$TABLETA" "$APLICACION" -demo -pestana "$2" -tema mercado >/dev/null || true
             sleep 8
             xcrun simctl io "$TABLETA" screenshot "captura-$1.png" || true
             echo "  · $1"
