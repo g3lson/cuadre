@@ -194,7 +194,11 @@ struct EnTiendaView: View {
     private func barraSuperior(_ l: Lista) -> some View {
         VStack(spacing: 8) {
             HStack {
-                Button { pestana = .listas } label: {
+                Button {
+                    // Salir de la compra es soltar la lista: la pestaña ya es
+                    // Listas, lo que cambia es que se deja de estar dentro.
+                    withAnimation(.snappy(duration: 0.2)) { listaId = nil }
+                } label: {
                     HStack(spacing: 4) {
                         IconoView(icono: .atras, tamano: 20)
                         Text("Listas").font(tema.texto(15, .bold))
@@ -505,7 +509,7 @@ struct EnTiendaView: View {
         PantallaVacia(icono: .bolsa,
               titulo: "No hay ninguna compra abierta",
               texto: "Aquí se lleva la compra en vivo: vas marcando lo que echas al carrito y la app suma sola. Crea una lista y vuelve cuando estés en la tienda.") {
-            Button("Ir a mis listas") { pestana = .listas }
+            Button("Ir a mis listas") { listaId = nil }
                 .buttonStyle(BotonPrincipal())
         }
     }

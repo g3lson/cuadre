@@ -152,6 +152,16 @@ struct FichaArticuloView: View {
 
     // MARK: - Los tres números
 
+    /// EL ANCHO DE LA COLUMNA DE LA DERECHA.
+    ///
+    /// Los tres controles —el contador con su unidad, el precio y el total—
+    /// miden lo mismo y empiezan donde mismo. Antes cada uno pedía el ancho que
+    /// necesitaba su contenido y quedaban tres bordes escalonados: la fila de
+    /// arriba corta y las dos de abajo largas. Alinear tres cajas es gratis y
+    /// es la diferencia entre una pantalla ordenada y una que parece a medio
+    /// hacer.
+    private let anchoDeControl: CGFloat = 196
+
     @ViewBuilder
     private var numeros: some View {
         VStack(spacing: 4) {
@@ -161,20 +171,21 @@ struct FichaArticuloView: View {
                 HStack(spacing: 6) {
                     HStack(spacing: 0) {
                         Button { paso(-1) } label: {
-                            Text("−").font(tema.texto(20, .bold)).frame(width: 38, height: 38)
+                            Text("−").font(tema.texto(20, .bold)).frame(width: 36, height: 38)
                         }
                         TextField("1", text: $cantidad)
                             .font(tema.texto(17, .heavy))
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.center)
-                            .frame(width: 54)
+                            .frame(maxWidth: .infinity)
                             .focused($foco, equals: .cantidad)
                             .onChange(of: cantidad) { _, _ in cambióCantidad() }
                         Button { paso(1) } label: {
-                            Text("+").font(tema.texto(20, .bold)).frame(width: 38, height: 38)
+                            Text("+").font(tema.texto(20, .bold)).frame(width: 36, height: 38)
                         }
                     }
                     .foregroundStyle(tema.texto)
+                    .frame(maxWidth: .infinity)
                     .padding(3)
                     .background(tema.fondo, in: Capsule())
 
@@ -194,6 +205,7 @@ struct FichaArticuloView: View {
                     .fixedSize()
                     .accessibilityLabel("Unidad: \(unidad.etiqueta)")
                 }
+                .frame(width: anchoDeControl)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
@@ -239,6 +251,7 @@ struct FichaArticuloView: View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(titulo).font(tema.texto(15, .bold))
+                    .lineLimit(1).minimumScaleFactor(0.75)
                 if let aviso {
                     Text(aviso).font(tema.texto(12, .heavy)).foregroundStyle(tema.acento2_800)
                 }
@@ -250,12 +263,12 @@ struct FichaArticuloView: View {
                     .font(tema.texto(17, .heavy))
                     .keyboardType(.decimalPad)
                     .multilineTextAlignment(.trailing)
-                    .frame(width: 92)
+                    .frame(maxWidth: .infinity)
                     .focused($foco, equals: campo)
                     .onChange(of: texto.wrappedValue) { _, _ in alCambiar() }
             }
             .padding(.horizontal, 14)
-            .frame(height: 44)
+            .frame(width: anchoDeControl, height: 44)
             .background(tema.fondo, in: Capsule())
         }
         .padding(.horizontal, 10)

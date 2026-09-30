@@ -6,6 +6,11 @@ import SwiftData
 /// Está detrás del avatar y no en una pestaña: se entra dos veces al mes y no
 /// merece una quinta parte de la barra de abajo.
 struct AjustesView: View {
+    /// Cuando vive en la barra de abajo no hay nada que cerrar: el botón
+    /// «Listo» solo tiene sentido cuando esto se abrió como una hoja encima de
+    /// otra pantalla.
+    var enUnaPestana = false
+
     @Environment(\.tema) private var tema
     @Environment(\.modelContext) private var ctx
     @Environment(\.dismiss) private var cerrar
@@ -45,8 +50,10 @@ struct AjustesView: View {
             .navigationTitle("Ajustes")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Listo") { cerrar() }.font(tema.texto(16, .bold))
+                if !enUnaPestana {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Listo") { cerrar() }.font(tema.texto(16, .bold))
+                    }
                 }
             }
             .navigationDestination(for: Destino.self) { d in

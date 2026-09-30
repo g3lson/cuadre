@@ -99,6 +99,16 @@ CREATE TABLE IF NOT EXISTS pasillos (
   id TEXT PRIMARY KEY, usuario_id TEXT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
   datos TEXT NOT NULL, actualizado TEXT NOT NULL, borrado TEXT);
 
+-- CLASIFICACIONES.
+--
+-- Maneras de ordenar los productos que decide cada quien: «Pasillo» viene de
+-- fábrica, pero uno que venda ropa querrá «Marca» y «Talla», y quien venda
+-- pescado no quiere ninguna. Los valores de cada una viven en «pasillos», que
+-- es la tabla que ya existía y guarda exactamente eso.
+CREATE TABLE IF NOT EXISTS clasificaciones (
+  id TEXT PRIMARY KEY, usuario_id TEXT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+  datos TEXT NOT NULL, actualizado TEXT NOT NULL, borrado TEXT);
+
 -- GRUPOS.
 --
 -- «Mi negocio», «El otro negocio», «Casa». Un grupo tiene gente dentro, y todo
@@ -249,7 +259,7 @@ columna('invitaciones', 'ambito', "TEXT NOT NULL DEFAULT 'lista'");
 // A qué grupo pertenece cada cosa. Sale de dentro de `datos` y se guarda aparte
 // porque de ella depende quién puede verla, y buscarla dentro del JSON en cada
 // sincronización sería recorrer la tabla entera cada vez.
-for (const tabla of ['listas', 'eventos', 'catalogo', 'clientes', 'tiendas', 'pasillos']) {
+for (const tabla of ['listas', 'eventos', 'catalogo', 'clientes', 'tiendas', 'pasillos', 'clasificaciones']) {
   columna(tabla, 'grupo_id', 'TEXT');
   bd.exec(`CREATE INDEX IF NOT EXISTS idx_${tabla}_grupo ON ${tabla} (grupo_id)`);
 }
@@ -298,7 +308,7 @@ try {
 } catch (e) { console.error('[bd] no pude rellenar lista_id:', e.message); }
 
 /** Las tablas que el sincronizador conoce. Añadir una entidad es añadirla aquí. */
-export const TABLAS = ['grupos', 'pasillos', 'listas', 'articulos', 'eventos', 'encargos', 'catalogo', 'clientes', 'tiendas', 'ajustes'];
+export const TABLAS = ['grupos', 'clasificaciones', 'pasillos', 'listas', 'articulos', 'eventos', 'encargos', 'catalogo', 'clientes', 'tiendas', 'ajustes'];
 
 /**
  * De dónde sale el «a quién pertenece» de cada tabla, para poder guardarlo en
@@ -312,6 +322,7 @@ export const AMBITO_DE = {
   clientes: { columna: 'grupo_id', campo: 'grupoId' },
   tiendas: { columna: 'grupo_id', campo: 'grupoId' },
   pasillos: { columna: 'grupo_id', campo: 'grupoId' },
+  clasificaciones: { columna: 'grupo_id', campo: 'grupoId' },
   articulos: { columna: 'lista_id', campo: 'listaId', padre: 'listas' },
   encargos: { columna: 'evento_id', campo: 'eventoId', padre: 'eventos' },
 };

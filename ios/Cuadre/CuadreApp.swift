@@ -7,7 +7,7 @@ struct CuadreApp: App {
     /// nombrarlos dos veces y que se queden desparejados no da error: da una
     /// tabla que desaparece.
     private static let tipos: [any PersistentModel.Type] = [
-        Grupo.self, Pasillo.self, Lista.self, Articulo.self, Evento.self,
+        Grupo.self, Clasificacion.self, Pasillo.self, Lista.self, Articulo.self, Evento.self,
         Encargo.self, Producto.self, Cliente.self, Tienda.self, Ajustes.self,
     ]
 

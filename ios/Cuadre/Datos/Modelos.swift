@@ -100,6 +100,13 @@ extension Sincronizable {
     /// y no el identificador: lo que hay que enseñar es «lo cogió Ana», y pedirle
     /// el nombre al servidor por cada fila para eso sería absurdo.
     var hechoPor: String = ""
+    /// Qué vale este producto en cada clasificación que el usuario haya
+    /// encendido, como «id de la clasificación = valor», una por línea.
+    ///
+    /// No es una tabla aparte ni un JSON: son dos o tres pares de texto por
+    /// producto, y una tabla aparte significaría una entidad más que
+    /// sincronizar, migrar y borrar en cascada para guardar «Marca: Rica».
+    var etiquetas: String = ""
     var actualizado: Date = Date.now
     var borrado: Date? = nil
     var subido: Date? = nil
@@ -123,6 +130,31 @@ extension Sincronizable {
     }
 
     var total: Double { cantidad * precio }
+
+    /// Lo que vale este producto en una clasificación.
+    func etiqueta(_ clasificacionId: String) -> String {
+        for linea in etiquetas.split(separator: "\n") {
+            let trozos = linea.split(separator: "=", maxSplits: 1)
+            if trozos.count == 2, trozos[0] == clasificacionId { return String(trozos[1]) }
+        }
+        return ""
+    }
+
+    /// Ponerlo, cambiarlo o quitarlo (con el valor vacío).
+    func pon(_ valor: String, en clasificacionId: String) {
+        var pares = etiquetas.split(separator: "\n").compactMap { linea -> (String, String)? in
+            let trozos = linea.split(separator: "=", maxSplits: 1)
+            guard trozos.count == 2 else { return nil }
+            return (String(trozos[0]), String(trozos[1]))
+        }
+        pares.removeAll { $0.0 == clasificacionId }
+        // El valor no puede llevar el salto ni el igual, que son lo que separa.
+        let limpio = valor.replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "=", with: " ")
+            .trimmingCharacters(in: .whitespaces)
+        if !limpio.isEmpty { pares.append((clasificacionId, limpio)) }
+        etiquetas = pares.map { "\($0.0)=\($0.1)" }.joined(separator: "\n")
+    }
 
     /// Marcar o desmarcar, dejando dicho quién fue. En una lista de una sola
     /// persona el nombre sobra y no se enseña; en una de dos es lo importante.
@@ -287,15 +319,34 @@ extension Sincronizable {
 /// porque cada quien compra en un sitio distinto y lo recorre en otro orden: un
 /// colmado no tiene «Ferretería», y quien vende pescado querrá «Nevera» antes
 /// que «Víveres». Las que trae la app son un punto de partida, no una regla.
-@Model final class Pasillo: Sincronizable {
+/// UNA MANERA DE ORDENAR LOS PRODUCTOS, DECIDIDA POR QUIEN LA USA.
+///
+/// «Pasillo» viene de fábrica porque es la que ahorra pasos en el súper, pero
+/// no vale para todo el mundo: quien vende ropa quiere «Marca» y «Talla», y
+/// quien vende pescado no quiere ninguna. Antes el pasillo estaba metido a la
+/// fuerza en cada producto y no se podía quitar.
+///
+/// **Vienen todas apagadas.** Una casilla más en la ficha de un producto se
+/// paga en cada producto que se anota, y la mayoría no la necesita. Quien la
+/// quiera, la enciende.
+@Model final class Clasificacion: Sincronizable {
     @Attribute(.unique) var id: String = ""
     var nombre: String = ""
-    /// En qué orden se recorren. Es lo que de verdad ahorra pasos en el súper.
+    /// Si se enseña en la ficha del producto y se puede filtrar por ella.
+    var activa: Bool = false
+    /// Si agrupa la lista de la compra. Solo una puede hacerlo a la vez: dos
+    /// agrupaciones cruzadas no son una lista, son una tabla.
+    var agrupa: Bool = false
     var orden: Int = 0
     var grupoId: String = ""
     var actualizado: Date = Date.now
     var borrado: Date? = nil
     var subido: Date? = nil
+
+    /// La de fábrica lleva un identificador fijo, no uno al azar: los pasillos
+    /// que ya existían en los teléfonos no lo llevan escrito, y es así como se
+    /// sabe que son suyos sin tener que tocarlos uno a uno.
+    static let pasillos = "pasillos"
 
     init(id: String = UUID().uuidString, nombre: String, orden: Int = 0, grupoId: String = "") {
         self.id = id
@@ -303,6 +354,39 @@ extension Sincronizable {
         self.orden = orden
         self.grupoId = grupoId
         self.actualizado = .now
+    }
+}
+
+/// UN VALOR DE UNA CLASIFICACIÓN.
+///
+/// Se sigue llamando `Pasillo` porque es lo que guardaba y lo que sigue
+/// guardando: una fila con un nombre y un orden. Ahora además sabe de qué
+/// clasificación es, y vacío significa «de los pasillos de siempre».
+@Model final class Pasillo: Sincronizable {
+    @Attribute(.unique) var id: String = ""
+    var nombre: String = ""
+    /// En qué orden se recorren. Es lo que de verdad ahorra pasos en el súper.
+    var orden: Int = 0
+    /// De qué clasificación es este valor. Vacío = la de fábrica, «Pasillo».
+    var clasificacionId: String = ""
+    var grupoId: String = ""
+    var actualizado: Date = Date.now
+    var borrado: Date? = nil
+    var subido: Date? = nil
+
+    init(id: String = UUID().uuidString, nombre: String, orden: Int = 0, grupoId: String = "",
+         clasificacionId: String = "") {
+        self.id = id
+        self.nombre = nombre
+        self.orden = orden
+        self.grupoId = grupoId
+        self.clasificacionId = clasificacionId
+        self.actualizado = .now
+    }
+
+    /// De qué clasificación es, con la de fábrica como respuesta por defecto.
+    var deQuien: String {
+        clasificacionId.isEmpty ? Clasificacion.pasillos : clasificacionId
     }
 }
 

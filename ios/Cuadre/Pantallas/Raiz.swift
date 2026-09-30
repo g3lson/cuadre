@@ -23,7 +23,6 @@ struct Raiz: View {
     /// solo quita sitio justo donde está la mano.
     @State private var enLaVenta: String?
     /// Solo en modo demo: abrir Ajustes de una vez, para poder fotografiarla.
-    @State private var demoAjustes = Demo.pestana == "ajustes"
     @State private var invitacion: Invitacion?
 
     /// El código de una invitación que llegó por enlace. Es un tipo y no un
@@ -66,6 +65,9 @@ struct Raiz: View {
         .onAppear {
             if sincronizador == nil { sincronizador = Sincronizador(contexto: ctx) }
             tema.aplicaALaBarra()
+            // Para las capturas: «-pestana tienda» ya no es una pestaña, es
+            // estar dentro de la lista que se está comprando.
+            if Demo.pestana == "tienda", enTienda == nil { enTienda = laQueSeEstaComprando }
         }
         .onChange(of: tema.id) { _, _ in tema.aplicaALaBarra() }
         .onChange(of: fase) { _, nueva in
@@ -106,17 +108,16 @@ struct Raiz: View {
         Group {
             if ancho == .regular {
                 HStack(spacing: 0) {
-                    // En el iPad el raíl se queda: hay ancho de sobra y quitarlo
-                    // dejaría media pantalla vacía para no ganar nada.
-                    RailDePestanas(activa: $pestana, conVentas: mostrarVentas) {
-                        demoAjustes = true
-                    }
+                    // En el iPad el raíl se queda incluso dentro de una lista o
+                    // de una venta: hay ancho de sobra y quitarlo dejaría media
+                    // pantalla vacía para no ganar nada.
+                    RailDePestanas(activa: $pestana, conVentas: mostrarVentas)
                     pantalla
                 }
             } else {
                 ZStack(alignment: .bottom) {
                     pantalla
-                    if !dentroDeUnaVenta {
+                    if !aSolas {
                         BarraDePestanas(activa: $pestana, conVentas: mostrarVentas)
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
@@ -124,17 +125,26 @@ struct Raiz: View {
             }
         }
         .overlay(alignment: .top) { veloDeArriba }
-        .animation(.snappy(duration: 0.2), value: dentroDeUnaVenta)
+        .animation(.snappy(duration: 0.2), value: aSolas)
         .onChange(of: mostrarVentas) { _, hay in
             if !hay, pestana == .ventas { pestana = .listas }
         }
-        .sheet(isPresented: $demoAjustes) {
-            AjustesView().hojaDeCuadre(tema)
-        }
     }
 
-    /// Solo en el iPhone: en el iPad el raíl no estorba.
-    private var dentroDeUnaVenta: Bool { pestana == .ventas && enLaVenta != nil }
+    /// La compra abierta más reciente. Es a la que lleva el widget y a la que se
+    /// vuelve al entrar en la pestaña.
+    private var laQueSeEstaComprando: String? {
+        listas.filter { $0.estado == "activa" }
+            .max(by: { $0.actualizado < $1.actualizado })?.id
+    }
+
+    /// Cuando se está DENTRO de algo —comprando una lista o despachando una
+    /// venta— la barra sobra: es para saltar entre pantallas generales, y ahí
+    /// solo quita sitio justo donde está la mano. Solo en el iPhone: en el iPad
+    /// el raíl no estorba.
+    private var aSolas: Bool {
+        (pestana == .ventas && enLaVenta != nil) || (pestana == .listas && enTienda != nil)
+    }
 
     /// EL VELO DE LA BARRA DE ESTADO.
     ///
@@ -156,13 +166,19 @@ struct Raiz: View {
         Group {
             switch pestana {
             case .listas:
-                ListasView(enTienda: $enTienda, pestana: $pestana)
-            case .tienda:
-                EnTiendaView(listaId: $enTienda, pestana: $pestana)
+                // Listas es la pantalla general; dentro de una lista se compra
+                // a pantalla completa, igual que dentro de una venta.
+                if enTienda != nil {
+                    EnTiendaView(listaId: $enTienda, pestana: $pestana)
+                } else {
+                    ListasView(enTienda: $enTienda, pestana: $pestana)
+                }
             case .ventas:
                 VentasView(abierta: $enLaVenta)
             case .cuadre:
                 CuadreView()
+            case .ajustes:
+                AjustesView(enUnaPestana: true)
             }
         }
         .environment(\.sincronizador, sincronizador)
@@ -215,9 +231,15 @@ extension Raiz {
         }
         // Los widgets y la actividad en vivo. Tocar el que dice cuánto llevas
         // gastado tiene que abrir justo esa pantalla, no la portada.
-        if url.scheme == "cuadre", let destino = Pestana(rawValue: url.host ?? "") {
-            pestana = destino
+        guard url.scheme == "cuadre" else { return }
+        if url.host == "tienda" {
+            // «En tienda» dejó de ser una pestaña: es estar dentro de la lista
+            // que se está comprando. El enlace viejo sigue valiendo.
+            pestana = .listas
+            enTienda = laQueSeEstaComprando
+            return
         }
+        if let destino = Pestana(rawValue: url.host ?? "") { pestana = destino }
     }
 }
 
