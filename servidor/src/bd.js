@@ -69,10 +69,13 @@ CREATE TABLE IF NOT EXISTS listas (
 -- único que el servidor SÍ necesita entender de un artículo, porque de él
 -- depende quién puede verlo cuando la lista está compartida. Buscarlo dentro
 -- del JSON en cada consulta sería un escaneo entero por cada sincronización.
+-- El índice sobre «lista_id» NO va aquí: en una base que ya existía, la tabla
+-- se queda como estaba —«IF NOT EXISTS» no añade columnas— y crear un índice
+-- sobre una columna que aún no está tira el arranque entero. Va abajo, después
+-- de la migración que la añade.
 CREATE TABLE IF NOT EXISTS articulos (
   id TEXT PRIMARY KEY, usuario_id TEXT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
   lista_id TEXT, datos TEXT NOT NULL, actualizado TEXT NOT NULL, borrado TEXT);
-CREATE INDEX IF NOT EXISTS idx_articulos_lista ON articulos (lista_id);
 CREATE TABLE IF NOT EXISTS eventos (
   id TEXT PRIMARY KEY, usuario_id TEXT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
   datos TEXT NOT NULL, actualizado TEXT NOT NULL, borrado TEXT);
@@ -186,6 +189,25 @@ CREATE TABLE IF NOT EXISTS uso_dia (
   dia TEXT NOT NULL, clave TEXT NOT NULL, veces INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (dia, clave));
 `);
+
+/**
+ * AÑADIR UNA COLUMNA A UNA TABLA QUE YA EXISTE.
+ *
+ * `CREATE TABLE IF NOT EXISTS` con la columna nueva dentro **no hace nada** si
+ * la tabla ya está: se queda como estaba y todo lo que la use se cae con «no
+ * such column». Pasó con `lista_id` y tiró el servidor entero en bucle, así que
+ * a partir de ahora toda columna nueva se añade por aquí.
+ */
+function columna(tabla, nombre, tipo) {
+  const hay = bd.prepare(`PRAGMA table_info(${tabla})`).all().some((c) => c.name === nombre);
+  if (hay) return false;
+  bd.exec(`ALTER TABLE ${tabla} ADD COLUMN ${nombre} ${tipo}`);
+  console.log('[bd] columna nueva:', tabla + '.' + nombre);
+  return true;
+}
+
+columna('articulos', 'lista_id', 'TEXT');
+bd.exec('CREATE INDEX IF NOT EXISTS idx_articulos_lista ON articulos (lista_id)');
 
 // Los artículos guardados antes de que existiera la columna no tienen
 // `lista_id`. Se rellena una vez, al arrancar: son cuatro filas hoy y es la

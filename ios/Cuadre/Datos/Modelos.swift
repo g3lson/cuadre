@@ -93,6 +93,10 @@ extension Sincronizable {
     var nota: String
     var categoria: String
     var orden: Int
+    /// Quién lo echó al carrito, cuando la lista es de dos. Se guarda el nombre
+    /// y no el identificador: lo que hay que enseñar es «lo cogió Ana», y pedirle
+    /// el nombre al servidor por cada fila para eso sería absurdo.
+    var hechoPor: String
     var actualizado: Date
     var borrado: Date?
     var subido: Date?
@@ -111,10 +115,19 @@ extension Sincronizable {
         self.nota = nota
         self.categoria = categoria
         self.orden = orden
+        self.hechoPor = ""
         self.actualizado = .now
     }
 
     var total: Double { cantidad * precio }
+
+    /// Marcar o desmarcar, dejando dicho quién fue. En una lista de una sola
+    /// persona el nombre sobra y no se enseña; en una de dos es lo importante.
+    func marca(_ puesto: Bool, quien: String) {
+        hecho = puesto
+        hechoPor = puesto ? quien : ""
+        toco()
+    }
 }
 
 @Model final class Evento: Sincronizable {
@@ -270,6 +283,11 @@ extension Sincronizable {
     var nombreDetal: String
     var nombreMayor: String
     var nombreEspecial: String
+    /// Agrupar la lista por categoría para recorrer el súper en orden en vez de
+    /// ir y volver por los pasillos.
+    var agrupar: Bool
+    /// El modelo de IA que eligió esta persona. Vacío = el que traiga el servidor.
+    var modeloIA: String
     var actualizado: Date
     var borrado: Date?
     var subido: Date?
@@ -288,6 +306,8 @@ extension Sincronizable {
         self.nombreDetal = "Detal"
         self.nombreMayor = "Mayor"
         self.nombreEspecial = "Especial"
+        self.agrupar = true
+        self.modeloIA = ""
         self.actualizado = .now
     }
 

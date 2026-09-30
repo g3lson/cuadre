@@ -247,23 +247,25 @@ struct DatosLista: DatosDe {
 struct DatosArticulo: DatosDe {
     var listaId = ""; var nombre = ""; var unidad = "ud"; var cantidad: Double = 1
     var precio: Double = 0; var hecho = false; var nota = ""; var categoria = Categoria.porDefecto
-    var orden = 0; var tienda = ""
+    var orden = 0; var tienda = ""; var hechoPor = ""
 
     init(_ m: Articulo) {
         listaId = m.listaId; nombre = m.nombre; unidad = m.unidad; cantidad = m.cantidad
-        precio = m.precio; hecho = m.hecho; nota = m.nota; categoria = m.categoria; orden = m.orden
+        precio = m.precio; hecho = m.hecho; nota = m.nota; categoria = m.categoria
+        orden = m.orden; hechoPor = m.hechoPor
     }
     init(from dec: Decoder) throws {
         let c = try dec.container(keyedBy: CodingKeys.self)
         listaId = c.v(.listaId, ""); nombre = c.v(.nombre, ""); unidad = c.v(.unidad, "ud")
         cantidad = c.v(.cantidad, 1); precio = c.v(.precio, 0); hecho = c.v(.hecho, false)
         nota = c.v(.nota, ""); categoria = c.v(.categoria, Categoria.porDefecto)
-        orden = c.v(.orden, 0); tienda = c.v(.tienda, "")
+        orden = c.v(.orden, 0); tienda = c.v(.tienda, ""); hechoPor = c.v(.hechoPor, "")
     }
 
     func vuelca(en m: Articulo) {
         m.listaId = listaId; m.nombre = nombre; m.unidad = unidad; m.cantidad = cantidad
-        m.precio = precio; m.hecho = hecho; m.nota = nota; m.categoria = categoria; m.orden = orden
+        m.precio = precio; m.hecho = hecho; m.nota = nota; m.categoria = categoria
+        m.orden = orden; m.hechoPor = hechoPor
     }
 }
 
@@ -360,12 +362,14 @@ struct DatosAjustes: DatosDe {
     var modoVendedor = false; var nombreNegocio = ""
     var verCantidad = true; var verPrecio = true; var verTotal = true; var verNota = false
     var nombreDetal = "Detal"; var nombreMayor = "Mayor"; var nombreEspecial = "Especial"
+    var agrupar = true; var modeloIA = ""
 
     init(_ m: Ajustes) {
         tema = m.tema; moneda = m.moneda; unidadPorDefecto = m.unidadPorDefecto
         modoVendedor = m.modoVendedor; nombreNegocio = m.nombreNegocio
         verCantidad = m.verCantidad; verPrecio = m.verPrecio; verTotal = m.verTotal; verNota = m.verNota
         nombreDetal = m.nombreDetal; nombreMayor = m.nombreMayor; nombreEspecial = m.nombreEspecial
+        agrupar = m.agrupar; modeloIA = m.modeloIA
     }
     init(from dec: Decoder) throws {
         let c = try dec.container(keyedBy: CodingKeys.self)
@@ -376,6 +380,7 @@ struct DatosAjustes: DatosDe {
         verTotal = c.v(.verTotal, true); verNota = c.v(.verNota, false)
         nombreDetal = c.v(.nombreDetal, "Detal"); nombreMayor = c.v(.nombreMayor, "Mayor")
         nombreEspecial = c.v(.nombreEspecial, "Especial")
+        agrupar = c.v(.agrupar, true); modeloIA = c.v(.modeloIA, "")
     }
 
     func vuelca(en m: Ajustes) {
@@ -383,5 +388,6 @@ struct DatosAjustes: DatosDe {
         m.modoVendedor = modoVendedor; m.nombreNegocio = nombreNegocio
         m.verCantidad = verCantidad; m.verPrecio = verPrecio; m.verTotal = verTotal; m.verNota = verNota
         m.nombreDetal = nombreDetal; m.nombreMayor = nombreMayor; m.nombreEspecial = nombreEspecial
+        m.agrupar = agrupar; m.modeloIA = modeloIA
     }
 }
