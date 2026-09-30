@@ -63,13 +63,23 @@ struct EnTiendaView: View {
     }
     private var faltan: [Articulo] { filtrados.filter { !$0.hecho } }
 
-    /// Por comprar, repartido por pasillo y en el orden del recorrido.
-    private var porPasillo: [(categoria: String, articulos: [Articulo])] {
+    /// La clasificación que parte la lista, si hay alguna encendida para eso.
+    private var queAgrupa: Clasificacion? { Almacen.laQueAgrupa(ctx) }
+
+    /// Por comprar, repartido por la clasificación que agrupe y en su orden.
+    ///
+    /// Antes era siempre «pasillo». Ahora lo decide quien usa la app: puede ser
+    /// el pasillo, la marca o nada. El orden de las secciones es el orden de
+    /// los valores, que es lo que convierte la lista en un recorrido.
+    private var porSeccion: [(seccion: String, articulos: [Articulo])] {
+        guard let c = queAgrupa else { return [] }
         let orden = Dictionary(uniqueKeysWithValues:
-            Almacen.pasillos(ctx).enumerated().map { ($0.element.nombre, $0.offset) })
-        return Dictionary(grouping: faltan, by: \.categoria)
-            .map { (categoria: $0.key, articulos: $0.value.sorted { $0.orden < $1.orden }) }
-            .sorted { (orden[$0.categoria] ?? 999) < (orden[$1.categoria] ?? 999) }
+            Almacen.valoresDe(ctx, c.id).enumerated().map { ($0.element.nombre, $0.offset) })
+        let id = c.id
+        return Dictionary(grouping: faltan, by: { Almacen.valor($0, en: id) })
+            .map { (seccion: $0.key.isEmpty ? "Sin clasificar" : $0.key,
+                    articulos: $0.value.sorted { $0.orden < $1.orden }) }
+            .sorted { (orden[$0.seccion] ?? 999) < (orden[$1.seccion] ?? 999) }
     }
 
     var body: some View {
@@ -133,9 +143,9 @@ struct EnTiendaView: View {
 
             if l.cerrada {
                 seccion(rotulo: "Comprado", articulos: enCarrito, tachado: true, lista: l)
-            } else if ajustes.agrupar && busca.isEmpty {
-                ForEach(porPasillo, id: \.categoria) { grupo in
-                    seccion(rotulo: grupo.categoria, articulos: grupo.articulos, tachado: false, lista: l)
+            } else if ajustes.agrupar, queAgrupa != nil, busca.isEmpty {
+                ForEach(porSeccion, id: \.seccion) { grupo in
+                    seccion(rotulo: grupo.seccion, articulos: grupo.articulos, tachado: false, lista: l)
                 }
             } else {
                 seccion(rotulo: busca.isEmpty ? "Por comprar" : "Encontrado · \(faltan.count)",
@@ -217,10 +227,16 @@ struct EnTiendaView: View {
                             .accessibilityLabel("Buscar")
 
                         Menu {
-                            Toggle(isOn: Binding(
-                                get: { ajustes.agrupar },
-                                set: { ajustes.agrupar = $0; ajustes.toco(); try? ctx.save() })) {
-                                Label("Agrupar por pasillo", systemImage: "list.bullet.indent")
+                            // Solo cuando hay una clasificación que agrupe:
+                            // ofrecer «agrupar» sin nada por lo que agrupar es
+                            // un interruptor que no hace nada.
+                            if let c = queAgrupa {
+                                Toggle(isOn: Binding(
+                                    get: { ajustes.agrupar },
+                                    set: { ajustes.agrupar = $0; ajustes.toco(); try? ctx.save() })) {
+                                    Label("Agrupar por \(c.nombre.lowercased())",
+                                          systemImage: "list.bullet.indent")
+                                }
                             }
                             Button { columnasAbiertas = true } label: {
                                 Label("Qué columnas ver", systemImage: "slider.horizontal.3")
