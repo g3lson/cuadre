@@ -514,6 +514,9 @@ struct EnTiendaView: View {
 
     private func guarda() {
         try? ctx.save()
+        // El widget de la compra dice cuánto llevas gastado; marcar algo es
+        // justo lo que lo cambia.
+        Escaparate.actualiza(ctx)
         Task { await sincronizador?.sincroniza() }
     }
 

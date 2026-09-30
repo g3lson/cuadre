@@ -679,6 +679,7 @@ struct VentasView: View {
         if !quien.isEmpty { o.registradoPor = quien }
         o.toco()
         try? ctx.save()
+        Escaparate.actualiza(ctx)
         Task { await sincronizador?.sincroniza() }
         comprobante = o
 
@@ -702,6 +703,7 @@ struct VentasView: View {
         o.cobradoEn = nil
         o.toco()
         try? ctx.save()
+        Escaparate.actualiza(ctx)
         Task { await sincronizador?.sincroniza() }
         sesion.avisa("\(o.cliente) vuelve a quedar pendiente")
     }
