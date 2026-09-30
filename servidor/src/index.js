@@ -241,8 +241,12 @@ app.put('/api/grupos/:id/imagen', conSesion, limite(20),
 // contenido, así que una imagen distinta tiene otra dirección y nunca hay que
 // preguntar si la que se guardó sigue valiendo.
 app.use('/img', express.static(carpetaImagenes, {
-  maxAge: '365d', immutable: true, index: false, dotfiles: 'ignore', fallthrough: false,
+  maxAge: '365d', immutable: true, index: false, dotfiles: 'ignore',
 }));
+// Una imagen que ya no está es un 404 y no un error del servidor: puede ser un
+// logo que alguien cambió y un teléfono que todavía guardaba la dirección
+// vieja, y eso no es una avería.
+app.use('/img', (req, res) => res.status(404).type('text/plain').send('No está.'));
 
 /**
  * EN VIVO.
