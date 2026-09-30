@@ -12,6 +12,21 @@
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
+
+	<!-- Lo que normalmente escribe Xcode solo. Aquí el plist se escribe a mano
+	     (GENERATE_INFOPLIST_FILE = NO) para poder comentar lo demás, y sin estas
+	     cuatro claves el paquete se compila bien pero no se instala: «missing or
+	     invalid CFBundleExecutable». -->
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleSignature</key>
+	<string>????</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
