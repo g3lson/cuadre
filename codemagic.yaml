@@ -1,0 +1,164 @@
+# Compilar, firmar y subir Cuadre a TestFlight.
+#
+# La app es Swift y SwiftUI puros: no hay paso de web, ni CocoaPods, ni paquetes
+# que resolver. Todo lo que hace esto es firmar y archivar.
+#
+# Las credenciales de App Store Connect salen de la integración `nimbo`, que es
+# una llave de la cuenta de Apple entera y vale para cualquier app.
+#
+# Aparte hace falta UNA variable, en el grupo `apple` (App settings →
+# Environment variables), marcada como Secure:
+#
+#   CERTIFICATE_PRIVATE_KEY   la clave privada con la que se crea el certificado
+#                             de distribución. Es la misma que ya usa Chinola;
+#                             si hiciera falta una nueva:
+#                               ssh-keygen -t rsa -b 2048 -m PEM -f cert_key -q -N ""
+#                             y se pega el contenido entero de `cert_key`.
+#
+# Sin ella, `fetch-signing-files` avisa «Cannot save Signing Certificates without
+# certificate private key», no guarda el certificado y tampoco baja ningún
+# perfil: el archivado falla después diciendo que le falta el perfil.
+
+workflows:
+  ios:
+    name: Cuadre · iOS
+    instance_type: mac_mini_m2
+    max_build_duration: 45
+
+    integrations:
+      app_store_connect: nimbo
+
+    environment:
+      groups:
+        - apple
+      vars:
+        BUNDLE_ID: "do.com.fente.cuadre"
+        XCODE_PROJECT: "ios/Cuadre.xcodeproj"
+        XCODE_SCHEME: "Cuadre"
+        APPLE_TEAM_ID: "B375R2BWX8"
+      xcode: latest
+
+    triggering:
+      events:
+        - tag
+      tag_patterns:
+        - pattern: 'v*'
+          include: true
+
+    scripts:
+      - name: Comprobar que la firma está lista
+        # Va la primera a propósito: si falta la clave, se sabe en segundos y no
+        # después de compilar toda la app.
+        script: |
+          if [ -z "$CERTIFICATE_PRIVATE_KEY" ]; then
+            echo "Falta CERTIFICATE_PRIVATE_KEY."
+            echo
+            echo "Tiene que existir en App settings → Environment variables,"
+            echo "dentro de un grupo llamado exactamente 'apple' y marcada como"
+            echo "Secure. Si el grupo tiene otro nombre, cámbialo ahí o cambia"
+            echo "la línea 'groups:' de este archivo para que coincida."
+            exit 1
+          fi
+          echo "Clave privada presente (${#CERTIFICATE_PRIVATE_KEY} caracteres)."
+
+      - name: Poner el número de build
+        # Apple rechaza una subida si el número ya se usó, aunque el anterior
+        # nunca llegara a TestFlight. Preguntarle a él solo no basta: si la
+        # consulta falla o el build previo aún se está procesando, devuelve 0 y
+        # se repetiría el número. Por eso se toma el mayor entre lo que dice
+        # Apple y el contador de Codemagic, que nunca retrocede, y se le suma 1.
+        script: |
+          set -e
+          soloCifras() { printf '%s' "${1:-}" | tr -cd '0-9'; }
+
+          APPLE=$(soloCifras "$(app-store-connect get-latest-testflight-build-number "$BUNDLE_ID" 2>/dev/null)")
+          CODEMAGIC=$(soloCifras "$BUILD_NUMBER")
+          APPLE=${APPLE:-0}
+          CODEMAGIC=${CODEMAGIC:-0}
+
+          MAYOR=$APPLE
+          [ "$CODEMAGIC" -gt "$MAYOR" ] && MAYOR=$CODEMAGIC
+          NUEVO=$((MAYOR + 1))
+
+          echo "Apple: $APPLE · Codemagic: $CODEMAGIC · este build: $NUEVO"
+          agvtool new-version -all "$NUEVO"
+        working_directory: ios
+
+      - name: La versión, de la etiqueta de git
+        # El build se dispara con una etiqueta `vX.Y.Z`; esa es la versión que
+        # ve la gente, y tenerla en dos sitios es tenerla mal en uno.
+        script: |
+          set -e
+          VERSION="${CM_TAG#v}"
+          if [ -n "$VERSION" ]; then
+            echo "Versión de la etiqueta: $VERSION"
+            agvtool new-marketing-version "$VERSION"
+          else
+            echo "Sin etiqueta; se deja la versión que traiga el proyecto."
+          fi
+        working_directory: ios
+
+      - name: Traer los perfiles y certificados de firma
+        # El orden importa: primero el llavero, luego se bajan los archivos y
+        # solo entonces se meten los certificados. `--create` crea el App ID, el
+        # perfil y el certificado de Cuadre, que aún no existen.
+        #
+        # A `use-profiles` hay que decirle qué proyecto tocar: si no, busca por
+        # su cuenta y puede no dar con el nuestro, y entonces el proyecto se
+        # queda sin perfil y el archivado falla con «App requires a provisioning
+        # profile».
+        script: |
+          set -e
+          keychain initialize
+          app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create
+          keychain add-certificates
+          xcode-project use-profiles --project "$XCODE_PROJECT"
+
+          PERFILES=$(ls "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"/*.mobileprovision \
+                        "$HOME/Library/MobileDevice/Provisioning Profiles"/*.mobileprovision 2>/dev/null | wc -l)
+          if [ "$PERFILES" -eq 0 ]; then
+            echo "No se descargó ningún perfil de aprovisionamiento para $BUNDLE_ID."
+            echo "Revisa que el App ID esté registrado en el portal de Apple y que"
+            echo "tenga activada la capacidad Sign in with Apple."
+            exit 1
+          fi
+          echo "$PERFILES perfil(es) listos."
+
+      - name: Qué firma quedó puesta
+        # Si el archivado falla, esto dice si el perfil llegó o no.
+        script: |
+          echo "--- perfiles descargados ---"
+          ls -1 "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles" \
+                "$HOME/Library/MobileDevice/Provisioning Profiles" 2>/dev/null || echo "(ninguno)"
+          echo "--- certificados en el llavero ---"
+          security find-identity -v -p codesigning 2>/dev/null || true
+          echo "--- opciones de exportación ---"
+          cat "$HOME/export_options.plist" 2>/dev/null || echo "(no se generó export_options.plist)"
+          echo "--- ajustes de firma del proyecto ---"
+          xcodebuild -project "$XCODE_PROJECT" -scheme "$XCODE_SCHEME" -showBuildSettings 2>/dev/null \
+            | grep -E "CODE_SIGN_STYLE|DEVELOPMENT_TEAM|PROVISIONING_PROFILE|PRODUCT_BUNDLE_IDENTIFIER|MARKETING_VERSION|CURRENT_PROJECT_VERSION" || true
+        ignore_failure: true
+
+      - name: Compilar el .ipa
+        script: |
+          xcode-project build-ipa \
+            --project "$XCODE_PROJECT" \
+            --scheme "$XCODE_SCHEME"
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+
+    publishing:
+      app_store_connect:
+        auth: integration
+        # A TestFlight y nada más: la ficha de la tienda se envía a mano desde
+        # App Store Connect cuando las capturas y los textos estén listos.
+        submit_to_testflight: true
+        submit_to_app_store: false
+      email:
+        recipients:
+          - gelsonreynosom@gmail.com
+        notify:
+          success: true
+          failure: true

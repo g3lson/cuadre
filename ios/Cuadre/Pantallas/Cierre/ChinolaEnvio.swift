@@ -261,7 +261,7 @@ struct ChinolaEnvio: View {
                 categoria = l.categorias.first { $0.lowercased().contains("super") } ?? l.categorias.first ?? ""
             }
         } catch {
-            error = (error as? LocalizedError)?.errorDescription ?? "No pude hablar con Chinola."
+            self.error = (error as? LocalizedError)?.errorDescription ?? "No pude hablar con Chinola."
         }
     }
 

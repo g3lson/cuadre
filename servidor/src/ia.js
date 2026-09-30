@@ -28,7 +28,13 @@ Reglas del país y del oficio:
 - Un saco de arroz son 50 lb y se pide como 1 saco, no como 50 lb.
 - Si no sabes el precio, pon 0. Nunca lo inventes.
 - Si no sabes la unidad, usa "ud".
-- La nota es para marca, tamaño o detalle («Rica, la azul», «bien fresco», «50 lb»), no para repetir el nombre.`;
+- EL NOMBRE ES EL PRODUCTO COMPLETO tal como se dice, con su variedad dentro:
+  «Azúcar crema», «Arroz selecto», «Pan sobao», «Leche entera», «Queso de freír»,
+  «Plátanos barahoneros», «Camarones 21/25». No partas el nombre dejando la
+  variedad en la nota: en el pasillo se busca «azúcar crema», no «azúcar».
+- La nota es para lo que NO es el producto: la marca («Rica, la azul»), el estado
+  («bien fresco y escamado»), el tamaño del envase («50 lb»). Si no hay nada de
+  eso, la nota va vacía.`;
 
 async function pregunta(mensajes, { maxTokens = 1800 } = {}) {
   if (!hayIA()) throw Object.assign(new Error('La IA no está configurada en este servidor.'), { estado: 503 });
