@@ -34,9 +34,9 @@ extension Sincronizable {
     var vivo: Bool { borrado == nil }
 
     /// Tocar una fila es marcarla, no guardarla: SwiftData ya guarda.
-    func toco(_ cuando: Date = .now) { actualizado = cuando }
+    func toco(_ cuando: Date = Date.now) { actualizado = cuando }
 
-    func entierro(_ cuando: Date = .now) {
+    func entierro(_ cuando: Date = Date.now) {
         borrado = cuando
         actualizado = cuando
     }
@@ -47,7 +47,7 @@ extension Sincronizable {
     var nombre: String = ""
     var tienda: String = ""
     var presupuesto: Double = 0
-    var fecha: Date = .now
+    var fecha: Date = Date.now
     /// Índice en la paleta del tema: el color se resuelve al pintar, para que
     /// cambiar de tema cambie también los colores de las listas.
     var color: Int = 0
@@ -60,12 +60,12 @@ extension Sincronizable {
     var orden: Int = 0
     /// A qué grupo pertenece. Vacío = solo tuya.
     var grupoId: String = ""
-    var actualizado: Date = .now
+    var actualizado: Date = Date.now
     var borrado: Date? = nil
     var subido: Date? = nil
 
     init(id: String = UUID().uuidString, nombre: String, tienda: String = "",
-         presupuesto: Double = 0, fecha: Date = .now, color: Int = 0,
+         presupuesto: Double = 0, fecha: Date = Date.now, color: Int = 0,
          estado: String = "activa", orden: Int = 0) {
         self.id = id
         self.nombre = nombre
@@ -100,7 +100,7 @@ extension Sincronizable {
     /// y no el identificador: lo que hay que enseñar es «lo cogió Ana», y pedirle
     /// el nombre al servidor por cada fila para eso sería absurdo.
     var hechoPor: String = ""
-    var actualizado: Date = .now
+    var actualizado: Date = Date.now
     var borrado: Date? = nil
     var subido: Date? = nil
 
@@ -136,7 +136,7 @@ extension Sincronizable {
 @Model final class Evento: Sincronizable {
     @Attribute(.unique) var id: String = ""
     var titulo: String = ""
-    var fecha: Date = .now
+    var fecha: Date = Date.now
     /// «abierto» mientras se despacha, «cerrado» cuando se cuadró el día.
     var estado: String = ""
     var grupoId: String = ""
@@ -144,11 +144,11 @@ extension Sincronizable {
     /// la venta, pero se puede cambiar: un sábado se vende en el mercado y el
     /// otro en la parada, y el comprobante no dice lo mismo.
     var negocio: String = ""
-    var actualizado: Date = .now
+    var actualizado: Date = Date.now
     var borrado: Date? = nil
     var subido: Date? = nil
 
-    init(id: String = UUID().uuidString, titulo: String, fecha: Date = .now, estado: String = "abierto") {
+    init(id: String = UUID().uuidString, titulo: String, fecha: Date = Date.now, estado: String = "abierto") {
         self.id = id
         self.titulo = titulo
         self.fecha = fecha
@@ -188,7 +188,7 @@ extension Sincronizable {
     /// sabe quién las despachó.
     var registradoPor: String = ""
     var cobradoEn: Date? = nil
-    var actualizado: Date = .now
+    var actualizado: Date = Date.now
     var borrado: Date? = nil
     var subido: Date? = nil
 
@@ -244,7 +244,7 @@ extension Sincronizable {
     var precioDetal: Double = 0
     var precioMayor: Double = 0
     var precioEspecial: Double = 0
-    var actualizado: Date = .now
+    var actualizado: Date = Date.now
     var borrado: Date? = nil
     var subido: Date? = nil
 
@@ -268,7 +268,7 @@ extension Sincronizable {
     var nombre: String = ""
     var telefono: String = ""
     var grupoId: String = ""
-    var actualizado: Date = .now
+    var actualizado: Date = Date.now
     var borrado: Date? = nil
     var subido: Date? = nil
 
@@ -293,7 +293,7 @@ extension Sincronizable {
     /// En qué orden se recorren. Es lo que de verdad ahorra pasos en el súper.
     var orden: Int = 0
     var grupoId: String = ""
-    var actualizado: Date = .now
+    var actualizado: Date = Date.now
     var borrado: Date? = nil
     var subido: Date? = nil
 
@@ -331,7 +331,7 @@ extension Sincronizable {
     /// El teléfono que sale en el comprobante, para que el cliente sepa a
     /// dónde llamar si algo no cuadra.
     var telefono: String = ""
-    var actualizado: Date = .now
+    var actualizado: Date = Date.now
     var borrado: Date? = nil
     var subido: Date? = nil
 
@@ -349,7 +349,7 @@ extension Sincronizable {
 @Model final class Tienda: Sincronizable {
     @Attribute(.unique) var id: String = ""
     var nombre: String = ""
-    var actualizado: Date = .now
+    var actualizado: Date = Date.now
     var borrado: Date? = nil
     var subido: Date? = nil
 
@@ -389,7 +389,7 @@ extension Sincronizable {
     /// alguien como que pagó cuando no ha pagado cuesta dinero de verdad, y el
     /// error se descubre cuando ya se fue.
     var confirmarCobro: Bool = false
-    var actualizado: Date = .now
+    var actualizado: Date = Date.now
     var borrado: Date? = nil
     var subido: Date? = nil
 
