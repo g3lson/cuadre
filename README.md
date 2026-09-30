@@ -87,6 +87,11 @@ Sube el código a `athenas:/opt/stacks/cuadre/`, reconstruye el contenedor y
 comprueba la salud. Hace falta que existan el registro DNS y el Proxy Host; eso
 se hace una vez y a mano.
 
+Un solo dominio, `cuadre.fente.com.do`: la portada y las legales en la raíz, la
+API en `/api`. No hay `api.cuadre.…` a propósito — el certificado gratuito de
+Cloudflare cubre `*.fente.com.do` y nada más, así que un subdominio de dos
+niveles se queda sin certificado en el borde y el TLS falla.
+
 ## Licencia
 
 Propietario. Ver [LICENSE](LICENSE). Las tipografías son SIL OFL 1.1 y su aviso

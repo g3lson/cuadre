@@ -192,7 +192,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Cuadre/Cuadre.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CUADRE_API_URL = "https://api.cuadre.fente.com.do";
+				CUADRE_API_URL = "https://cuadre.fente.com.do";
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = B375R2BWX8;
@@ -221,7 +221,7 @@
 				CODE_SIGN_ENTITLEMENTS = Cuadre/Cuadre.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Distribution";
 				CODE_SIGN_STYLE = Manual;
-				CUADRE_API_URL = "https://api.cuadre.fente.com.do";
+				CUADRE_API_URL = "https://cuadre.fente.com.do";
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = B375R2BWX8;

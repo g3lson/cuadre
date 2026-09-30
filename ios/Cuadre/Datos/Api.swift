@@ -11,13 +11,21 @@ import UIKit
 actor Api {
     static let shared = Api()
 
-    /// La dirección pública. Se puede pisar desde el esquema de Xcode con
-    /// `CUADRE_API` para probar contra el portátil sin tocar código.
+    /// La dirección pública.
+    ///
+    /// Es `cuadre.fente.com.do` y no `api.cuadre.…` por una razón concreta: el
+    /// certificado gratuito de Cloudflare cubre `fente.com.do` y `*.fente.com.do`
+    /// —UN nivel de subdominio—, así que un nombre de dos niveles no tiene
+    /// certificado en el borde y el TLS falla antes de llegar a ninguna parte.
+    /// La API vive en `/api` del mismo sitio que la portada.
+    ///
+    /// Se puede pisar desde el esquema de Xcode con `CUADRE_API` para probar
+    /// contra el portátil sin tocar código.
     nonisolated static var base: URL {
         if let s = ProcessInfo.processInfo.environment["CUADRE_API"], let u = URL(string: s) { return u }
         if let s = Bundle.main.object(forInfoDictionaryKey: "CuadreAPI") as? String,
            !s.isEmpty, let u = URL(string: s) { return u }
-        return URL(string: "https://api.cuadre.fente.com.do")!
+        return URL(string: "https://cuadre.fente.com.do")!
     }
 
     private var testigo: String?

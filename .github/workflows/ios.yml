@@ -20,6 +20,49 @@ on:
         default: 'barro'
 
 jobs:
+  # ARCHIVAR, COMO LO HACE CODEMAGIC.
+  #
+  # El otro trabajo compila en Debug para el simulador; esto archiva en Release
+  # para un dispositivo, que es lo que de verdad se sube. No es lo mismo: Release
+  # compila el módulo entero de una vez y saca errores que Debug no ve, y el
+  # destino de dispositivo comprueba cosas del paquete que el simulador se salta.
+  #
+  # Va sin firmar: lo único que no se puede probar aquí son los certificados.
+  archivo:
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Archivar en Release, sin firmar
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project ios/Cuadre.xcodeproj \
+            -scheme Cuadre \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/Cuadre.xcarchive \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_ENTITLEMENTS="" \
+            archive 2>&1 | tee archivado.txt | grep -E "error:|warning:|ARCHIVE|BUILD" || true
+          if ! grep -q "ARCHIVE SUCCEEDED" archivado.txt; then
+            echo "::error::El archivado falló"
+            grep -E "error:" archivado.txt | head -40
+            exit 1
+          fi
+          echo "── lo que quedó dentro ──"
+          ls -la build/Cuadre.xcarchive/Products/Applications/*.app | head
+          /usr/libexec/PlistBuddy -c "Print" build/Cuadre.xcarchive/Products/Applications/Cuadre.app/Info.plist | head -40
+
+      - name: Subir el registro si falla
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: registro-archivado
+          path: archivado.txt
+
   simulador:
     runs-on: macos-15
     timeout-minutes: 35

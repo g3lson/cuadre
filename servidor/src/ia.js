@@ -36,37 +36,49 @@ Reglas del país y del oficio:
   («bien fresco y escamado»), el tamaño del envase («50 lb»). Si no hay nada de
   eso, la nota va vacía.`;
 
-async function pregunta(mensajes, { maxTokens = 1800 } = {}) {
+/**
+ * Pregunta, probando la cadena de modelos hasta que uno conteste.
+ *
+ * Lo que se aprendió probándolo contra el router de verdad:
+ *   · Con una imagen NO se pide `response_format: json_object`: el proveedor lo
+ *     ignora y el router devuelve `format_ignored`, así que la petición se cae
+ *     entera por pedir algo que no hacía falta. El JSON sale igual porque lo
+ *     pide el mensaje, y `extrae()` está para lo que no salga limpio.
+ *   · Un 429 no es un error que enseñar: es el siguiente de la lista.
+ */
+async function pregunta(mensajes, { maxTokens = 1800, conImagen = false } = {}) {
   if (!hayIA()) throw Object.assign(new Error('La IA no está configurada en este servidor.'), { estado: 503 });
 
-  const intentar = async (modelo) => {
-    const r = await fetch(config.ia.base + '/chat/completions', {
-      method: 'POST',
-      headers: { authorization: 'Bearer ' + config.ia.clave, 'content-type': 'application/json' },
-      body: JSON.stringify({
-        model: modelo,
-        max_tokens: maxTokens,
-        temperature: 0,
-        messages: mensajes,
-        response_format: { type: 'json_object' },
-      }),
-      signal: AbortSignal.timeout(90_000),
-    });
-    if (!r.ok) throw new Error(modelo + ' → ' + r.status + ' ' + (await r.text()).slice(0, 240));
-    const j = await r.json();
-    return j?.choices?.[0]?.message?.content || '';
+  const cadena = conImagen ? config.ia.modelosVision : config.ia.modelos;
+  const cuerpoBase = {
+    max_tokens: maxTokens,
+    temperature: 0,
+    messages: mensajes,
+    ...(conImagen ? {} : { response_format: { type: 'json_object' } }),
   };
 
-  try {
-    return await intentar(config.ia.modelo);
-  } catch (e) {
-    // El router tiene cadena de respaldo, pero un modelo concreto puede estar
-    // sin cuota justo hoy. `auto` deja que el router elija, y eso es mejor que
-    // decirle a alguien en el súper que la foto no se pudo leer.
-    console.error('[ia]', e.message);
-    if (!config.ia.respaldo || config.ia.respaldo === config.ia.modelo) throw e;
-    return await intentar(config.ia.respaldo);
+  let ultimo;
+  for (const modelo of cadena) {
+    try {
+      const r = await fetch(config.ia.base + '/chat/completions', {
+        method: 'POST',
+        headers: { authorization: 'Bearer ' + config.ia.clave, 'content-type': 'application/json' },
+        body: JSON.stringify({ model: modelo, ...cuerpoBase }),
+        signal: AbortSignal.timeout(90_000),
+      });
+      if (!r.ok) throw new Error(r.status + ' ' + (await r.text()).slice(0, 200));
+      const j = await r.json();
+      const texto = j?.choices?.[0]?.message?.content || '';
+      if (!texto.trim()) throw new Error('contestó vacío');
+      return texto;
+    } catch (e) {
+      ultimo = e;
+      console.error('[ia]', modelo, '→', e.message);
+    }
   }
+  throw Object.assign(
+    new Error('Los modelos no contestaron. Prueba otra vez en un rato.'),
+    { estado: 503, detalle: ultimo?.message });
 }
 
 /**
@@ -131,7 +143,7 @@ export async function listaDeRecibo(imagenBase64, tipo = 'image/jpeg') {
         { type: 'image_url', image_url: { url: `data:${tipo};base64,${datos}` } },
       ],
     },
-  ], { maxTokens: 2600 });
+  ], { maxTokens: 2600, conImagen: true });
 
   const j = extrae(bruto);
   return {
